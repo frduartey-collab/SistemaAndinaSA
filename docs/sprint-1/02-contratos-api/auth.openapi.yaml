@@ -1,0 +1,218 @@
+openapi: 3.1.0
+info:
+  title: Manufacturas Andina — Autenticación
+  version: 0.1.0
+  description: |
+    Contrato documental del Sprint 1 para RF-01 / HU-01.
+    No implica que los endpoints estén implementados.
+tags:
+  - name: Autenticación
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      operationId: iniciarSesion
+      summary: Iniciar sesión con RUT y contraseña
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginSolicitud'
+      responses:
+        '200':
+          description: Credenciales válidas y usuario activo; sesión iniciada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginRespuesta'
+        '400':
+          description: RUT_INVALIDO — formato o dígito verificador del RUT inválido.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorRespuesta'
+                  - type: object
+                    properties:
+                      codigo:
+                        const: RUT_INVALIDO
+              example:
+                codigo: RUT_INVALIDO
+                mensaje: El RUT no es válido.
+        '401':
+          description: CREDENCIALES_INVALIDAS — RUT o contraseña incorrectos.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorRespuesta'
+                  - type: object
+                    properties:
+                      codigo:
+                        const: CREDENCIALES_INVALIDAS
+              example:
+                codigo: CREDENCIALES_INVALIDAS
+                mensaje: Las credenciales no son válidas.
+        '403':
+          description: USUARIO_INACTIVO — el usuario no tiene acceso activo.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorRespuesta'
+                  - type: object
+                    properties:
+                      codigo:
+                        const: USUARIO_INACTIVO
+              example:
+                codigo: USUARIO_INACTIVO
+                mensaje: El usuario está inactivo.
+        '429':
+          description: DEMASIADOS_INTENTOS — límite de intentos de acceso alcanzado.
+          headers:
+            Retry-After:
+              description: Segundos que deben transcurrir antes de volver a intentar.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorRespuesta'
+                  - type: object
+                    properties:
+                      codigo:
+                        const: DEMASIADOS_INTENTOS
+              example:
+                codigo: DEMASIADOS_INTENTOS
+                mensaje: Demasiados intentos. Intente más tarde.
+  /auth/me:
+    get:
+      tags: [Autenticación]
+      operationId: obtenerSesion
+      summary: Consultar el usuario de la sesión actual
+      description: Requiere el encabezado Authorization con el valor Bearer seguido del JWT.
+      responses:
+        '200':
+          description: Usuario autenticado de la sesión actual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsuarioSesion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+  /auth/logout:
+    post:
+      tags: [Autenticación]
+      operationId: cerrarSesion
+      summary: Cerrar la sesión actual
+      description: |
+        Requiere Authorization Bearer. Al completarse, el token de esta sesión
+        debe dejar de permitir el acceso a los recursos protegidos.
+      responses:
+        '204':
+          description: Sesión cerrada correctamente; respuesta sin cuerpo.
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enviar Authorization con el valor Bearer seguido del JWT de acceso.
+  responses:
+    NoAutorizado:
+      description: JWT ausente, inválido, expirado o correspondiente a una sesión cerrada.
+      headers:
+        WWW-Authenticate:
+          description: Esquema de autenticación requerido.
+          schema:
+            type: string
+            const: Bearer
+  schemas:
+    Rol:
+      type: string
+      description: Coincide exactamente con Rol en backend/src/dominio.ts.
+      enum:
+        - TECNICO
+        - SUPERVISOR
+        - TRABAJADOR
+        - BODEGA
+        - JEFATURA
+    Rut:
+      type: string
+      description: |
+        RUT chileno sin puntos y con guion. La validación del dígito verificador
+        por módulo 11 es una regla semántica adicional al patrón de formato.
+      pattern: '^[0-9]{7,8}-[0-9Kk]$'
+      examples: ['12345678-5']
+    LoginSolicitud:
+      type: object
+      additionalProperties: false
+      required: [rut, password]
+      properties:
+        rut:
+          $ref: '#/components/schemas/Rut'
+        password:
+          type: string
+          minLength: 1
+          writeOnly: true
+    UsuarioSesion:
+      type: object
+      additionalProperties: false
+      required: [id, rut, nombre, rol, activo]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        rut:
+          $ref: '#/components/schemas/Rut'
+        nombre:
+          type: string
+          minLength: 1
+        rol:
+          $ref: '#/components/schemas/Rol'
+        activo:
+          type: boolean
+      examples:
+        - id: 1
+          rut: '12345678-5'
+          nombre: Ana Pérez
+          rol: TECNICO
+          activo: true
+    LoginRespuesta:
+      type: object
+      additionalProperties: false
+      required: [token, usuario, expiraEn]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: JWT de acceso que debe enviarse mediante Authorization Bearer.
+        usuario:
+          $ref: '#/components/schemas/UsuarioSesion'
+        expiraEn:
+          type: integer
+          minimum: 1
+          description: Tiempo de vigencia del token en segundos desde su emisión.
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          enum:
+            - RUT_INVALIDO
+            - CREDENCIALES_INVALIDAS
+            - USUARIO_INACTIVO
+            - DEMASIADOS_INTENTOS
+        mensaje:
+          type: string
+          minLength: 1
