@@ -1,2 +1,12 @@
 node_modules/
 backend/dist/
+.env
+.env.*
+!.env.example
+backend/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
+coverage/

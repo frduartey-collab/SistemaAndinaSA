@@ -1,0 +1,51 @@
+
+> sistema-andina-sa@0.1.0 test
+> npm run build && node --test backend/tests/*.test.mjs
+
+
+> sistema-andina-sa@0.1.0 build
+> tsc --project backend/tsconfig.json
+
+✔ CLI: seed y servidor reales, persistencia, permisos y rechazo de sobrescritura (868.646166ms)
+✔ CONTRATOS: las ocho rutas del código coinciden con OpenAPI (1.765333ms)
+✔ CONTRATOS: enums de dominio y YAML coinciden (0.340666ms)
+✔ CONTRATOS: requeridos de auth, equipo y rechazo de campos inesperados (32.011917ms)
+✔ CONTRATOS: las respuestas 204 no tienen cuerpo definido (0.06675ms)
+✔ GWT-HU01-01 RF-01: login válido devuelve JWT, usuario y expiración según contrato (534.777083ms)
+✔ GWT-HU01-02 RF-01: RUT inválido por formato y dígito devuelve 400 RUT_INVALIDO (177.668958ms)
+✔ GWT-HU01-03 RF-01: usuario desconocido y contraseña errónea dan el mismo 401 (420.879584ms)
+✔ GWT-HU01-04 RF-01: usuario inactivo con contraseña correcta recibe 403 (275.701792ms)
+✔ GWT-HU01-05 RF-01/RNF-07: quinto fallo bloquea, Retry-After y desbloqueo por tiempo (972.94375ms)
+✔ GWT-HU01-06 RF-01: logout 204 invalida el mismo token (278.241333ms)
+✔ GWT-HU01-07 RF-01: ausencia, manipulación y expiración de JWT dan 401 Bearer (371.830625ms)
+✔ GWT-HU01-08 RF-01/RNF-05: desactivar usuario revoca acceso efectivo de token vigente (338.3345ms)
+✔ GWT-HU01-09 RF-01: payload incompleto o con propiedades adicionales da 400 (137.948084ms)
+✔ GWT-HU01-10 RF-01/RNF-07: hash con sal distinta, comparación correcta y rechazo de hashes inválidos (393.605042ms)
+✔ GWT-HU01-11 RF-01: dos sesiones independientes, cerrar una no cierra la otra (405.767042ms)
+✔ GWT-HU01-12 RNF-07: secreto insuficiente impide inicializar servidor (0.27575ms)
+✔ GWT-HU02-01 RF-02: crear, listar y consultar equipo con ubicación y criticidad (287.107208ms)
+✔ GWT-HU02-02 RF-02: modificar ubicación, criticidad y estado persiste (270.58825ms)
+✔ GWT-HU02-03 RF-02: baja lógica conserva fila y oculta equipo de consultas (267.828417ms)
+✔ GWT-HU02-04 RF-02: código duplicado al crear o modificar devuelve 409 (266.802542ms)
+✔ GWT-HU02-05 RF-02: código no se reutiliza después de baja (373.38075ms)
+✔ GWT-HU02-06 RF-02: EQ exige cuatro dígitos exactos (266.084625ms)
+✔ GWT-HU02-07 RF-02: campos obligatorios, criticidad y propiedades extra se validan (267.383375ms)
+✔ GWT-HU02-08 RF-01/RF-02/RNF-05: TECNICO consulta y no escribe (400.133334ms)
+✔ GWT-HU02-08 RF-01/RF-02/RNF-05: TRABAJADOR consulta y no escribe (399.15325ms)
+✔ GWT-HU02-08 RF-01/RF-02/RNF-05: BODEGA consulta y no escribe (411.404625ms)
+✔ GWT-HU02-08 RF-01/RF-02/RNF-05: JEFATURA consulta y no escribe (406.3995ms)
+✔ GWT-HU02-09 RF-01/RF-02: las cinco rutas de activos exigen autenticación (137.701833ms)
+✔ GWT-HU02-10 RF-02: id, paginación y actualización vacía inválidos (274.370708ms)
+✔ GWT-HU02-11 RF-02: paginación estable con total independiente de página (275.660125ms)
+✔ GWT-HU02-12 RF-02/RNF-06: operaciones registran actor y no guardan secretos (273.294875ms)
+✔ GWT-HU02-13 RF-02: texto con caracteres SQL se almacena como dato (271.598625ms)
+✔ GWT-HU02-14 RF-02: base en disco conserva equipos y baja tras reabrir (5.122084ms)
+✔ GWT-HU02-15 RF-02: JSON malformado se rechaza sin excepción expuesta (272.943375ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9599.485041

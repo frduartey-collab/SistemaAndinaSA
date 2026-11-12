@@ -1,10 +1,9 @@
 openapi: 3.1.0
 info:
   title: Manufacturas Andina — Autenticación
-  version: 0.1.0
-  description: |
-    Contrato documental del Sprint 1 para RF-01 / HU-01.
-    No implica que los endpoints estén implementados.
+  version: 0.2.0
+  description: RF-01 / HU-01. RUT por módulo 11, sesiones JWT revocables y
+    permisos por rol. Políticas documentadas para revisión del PO.
 tags:
   - name: Autenticación
 security:
@@ -12,7 +11,8 @@ security:
 paths:
   /auth/login:
     post:
-      tags: [Autenticación]
+      tags:
+        - Autenticación
       operationId: iniciarSesion
       summary: Iniciar sesión con RUT y contraseña
       security: []
@@ -21,35 +21,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginSolicitud'
+              $ref: "#/components/schemas/LoginSolicitud"
       responses:
-        '200':
+        "200":
           description: Credenciales válidas y usuario activo; sesión iniciada.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginRespuesta'
-        '400':
-          description: RUT_INVALIDO — formato o dígito verificador del RUT inválido.
+                $ref: "#/components/schemas/LoginRespuesta"
+        "400":
+          description: RUT_INVALIDO para formato o dígito verificador; DATOS_INVALIDOS
+            para estructura inválida.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ErrorRespuesta'
+                  - $ref: "#/components/schemas/ErrorRespuesta"
                   - type: object
                     properties:
                       codigo:
-                        const: RUT_INVALIDO
+                        enum:
+                          - RUT_INVALIDO
+                          - DATOS_INVALIDOS
               example:
                 codigo: RUT_INVALIDO
                 mensaje: El RUT no es válido.
-        '401':
+        "401":
           description: CREDENCIALES_INVALIDAS — RUT o contraseña incorrectos.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ErrorRespuesta'
+                  - $ref: "#/components/schemas/ErrorRespuesta"
                   - type: object
                     properties:
                       codigo:
@@ -57,13 +60,13 @@ paths:
               example:
                 codigo: CREDENCIALES_INVALIDAS
                 mensaje: Las credenciales no son válidas.
-        '403':
+        "403":
           description: USUARIO_INACTIVO — el usuario no tiene acceso activo.
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ErrorRespuesta'
+                  - $ref: "#/components/schemas/ErrorRespuesta"
                   - type: object
                     properties:
                       codigo:
@@ -71,7 +74,7 @@ paths:
               example:
                 codigo: USUARIO_INACTIVO
                 mensaje: El usuario está inactivo.
-        '429':
+        "429":
           description: DEMASIADOS_INTENTOS — límite de intentos de acceso alcanzado.
           headers:
             Retry-After:
@@ -83,7 +86,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/ErrorRespuesta'
+                  - $ref: "#/components/schemas/ErrorRespuesta"
                   - type: object
                     properties:
                       codigo:
@@ -93,32 +96,34 @@ paths:
                 mensaje: Demasiados intentos. Intente más tarde.
   /auth/me:
     get:
-      tags: [Autenticación]
+      tags:
+        - Autenticación
       operationId: obtenerSesion
       summary: Consultar el usuario de la sesión actual
       description: Requiere el encabezado Authorization con el valor Bearer seguido del JWT.
       responses:
-        '200':
+        "200":
           description: Usuario autenticado de la sesión actual.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UsuarioSesion'
-        '401':
-          $ref: '#/components/responses/NoAutorizado'
+                $ref: "#/components/schemas/UsuarioSesion"
+        "401":
+          $ref: "#/components/responses/NoAutorizado"
   /auth/logout:
     post:
-      tags: [Autenticación]
+      tags:
+        - Autenticación
       operationId: cerrarSesion
       summary: Cerrar la sesión actual
       description: |
         Requiere Authorization Bearer. Al completarse, el token de esta sesión
         debe dejar de permitir el acceso a los recursos protegidos.
       responses:
-        '204':
+        "204":
           description: Sesión cerrada correctamente; respuesta sin cuerpo.
-        '401':
-          $ref: '#/components/responses/NoAutorizado'
+        "401":
+          $ref: "#/components/responses/NoAutorizado"
 components:
   securitySchemes:
     bearerAuth:
@@ -135,6 +140,13 @@ components:
           schema:
             type: string
             const: Bearer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorRespuesta"
+          example:
+            codigo: NO_AUTORIZADO
+            mensaje: Se requiere una sesión válida.
   schemas:
     Rol:
       type: string
@@ -150,53 +162,65 @@ components:
       description: |
         RUT chileno sin puntos y con guion. La validación del dígito verificador
         por módulo 11 es una regla semántica adicional al patrón de formato.
-      pattern: '^[0-9]{7,8}-[0-9Kk]$'
-      examples: ['12345678-5']
+      pattern: ^[0-9]{7,8}-[0-9Kk]$
+      examples:
+        - 12345678-5
     LoginSolicitud:
       type: object
       additionalProperties: false
-      required: [rut, password]
+      required:
+        - rut
+        - password
       properties:
         rut:
-          $ref: '#/components/schemas/Rut'
+          $ref: "#/components/schemas/Rut"
         password:
           type: string
           minLength: 1
           writeOnly: true
+          maxLength: 1024
     UsuarioSesion:
       type: object
       additionalProperties: false
-      required: [id, rut, nombre, rol, activo]
+      required:
+        - id
+        - rut
+        - nombre
+        - rol
+        - activo
       properties:
         id:
           type: integer
           minimum: 1
         rut:
-          $ref: '#/components/schemas/Rut'
+          $ref: "#/components/schemas/Rut"
         nombre:
           type: string
           minLength: 1
         rol:
-          $ref: '#/components/schemas/Rol'
+          $ref: "#/components/schemas/Rol"
         activo:
           type: boolean
       examples:
         - id: 1
-          rut: '12345678-5'
+          rut: 12345678-5
           nombre: Ana Pérez
           rol: TECNICO
           activo: true
     LoginRespuesta:
       type: object
       additionalProperties: false
-      required: [token, usuario, expiraEn]
+      required:
+        - token
+        - usuario
+        - expiraEn
       properties:
         token:
           type: string
           minLength: 1
           description: JWT de acceso que debe enviarse mediante Authorization Bearer.
         usuario:
-          $ref: '#/components/schemas/UsuarioSesion'
+          $ref: "#/components/schemas/UsuarioSesion"
         expiraEn:
           type: integer
           minimum: 1
@@ -204,7 +228,9 @@ components:
     ErrorRespuesta:
       type: object
       additionalProperties: false
-      required: [codigo, mensaje]
+      required:
+        - codigo
+        - mensaje
       properties:
         codigo:
           type: string
@@ -213,6 +239,8 @@ components:
             - CREDENCIALES_INVALIDAS
             - USUARIO_INACTIVO
             - DEMASIADOS_INTENTOS
+            - DATOS_INVALIDOS
+            - NO_AUTORIZADO
         mensaje:
           type: string
           minLength: 1

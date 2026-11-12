@@ -1,0 +1,491 @@
+openapi: 3.1.0
+info:
+  title: Manufacturas Andina - Gestión de activos
+  version: 0.1.0
+  description: "RF-02 / HU-02. SUPERVISOR escribe; todos los roles consultan.
+    DELETE es lógico y los códigos no se reutilizan. Formato: EQ- y cuatro
+    dígitos. Decisiones propuestas pendientes de ratificación del PO."
+security:
+  - bearerAuth: []
+paths:
+  /activos:
+    get:
+      operationId: listarEquipos
+      summary: Consultar equipos activos
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            maximum: 9007199254740991
+      responses:
+        "200":
+          description: Página de equipos no eliminados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoListaRespuesta"
+        "400":
+          description: Solicitud o código inválido.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - DATOS_INVALIDOS
+                          - CODIGO_INVALIDO
+        "401":
+          description: Sesión ausente, inválida, expirada o revocada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - NO_AUTORIZADO
+        "403":
+          description: El rol no tiene permiso.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - SIN_PERMISO
+    post:
+      operationId: crearEquipo
+      summary: Crear equipo (SUPERVISOR)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EquipoCrearSolicitud"
+      responses:
+        "201":
+          description: Equipo creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoRespuesta"
+          headers:
+            Location:
+              schema:
+                type: string
+              description: Ruta del equipo creado.
+        "400":
+          description: Solicitud o código inválido.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - DATOS_INVALIDOS
+                          - CODIGO_INVALIDO
+        "401":
+          description: Sesión ausente, inválida, expirada o revocada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - NO_AUTORIZADO
+        "403":
+          description: El rol no tiene permiso.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - SIN_PERMISO
+        "409":
+          description: Código reservado incluso si el equipo fue dado de baja.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - CODIGO_DUPLICADO
+  /activos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+    get:
+      operationId: consultarEquipo
+      summary: Consultar equipo activo
+      responses:
+        "200":
+          description: Equipo encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoRespuesta"
+        "400":
+          description: Solicitud o código inválido.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - DATOS_INVALIDOS
+                          - CODIGO_INVALIDO
+        "401":
+          description: Sesión ausente, inválida, expirada o revocada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - NO_AUTORIZADO
+        "403":
+          description: El rol no tiene permiso.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - SIN_PERMISO
+        "404":
+          description: Equipo inexistente o dado de baja.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - EQUIPO_NO_ENCONTRADO
+    patch:
+      operationId: modificarEquipo
+      summary: Modificar equipo (SUPERVISOR)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EquipoActualizarSolicitud"
+      responses:
+        "200":
+          description: Equipo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoRespuesta"
+        "400":
+          description: Solicitud o código inválido.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - DATOS_INVALIDOS
+                          - CODIGO_INVALIDO
+        "401":
+          description: Sesión ausente, inválida, expirada o revocada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - NO_AUTORIZADO
+        "403":
+          description: El rol no tiene permiso.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - SIN_PERMISO
+        "404":
+          description: Equipo inexistente o dado de baja.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - EQUIPO_NO_ENCONTRADO
+        "409":
+          description: Código reservado incluso si el equipo fue dado de baja.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - CODIGO_DUPLICADO
+    delete:
+      operationId: darDeBajaEquipo
+      summary: Baja lógica (SUPERVISOR)
+      description: Asigna eliminadoEn; conserva fila y auditoría. No realiza DELETE
+        físico de equipos. GET excluye filas dadas de baja.
+      responses:
+        "204":
+          description: Baja aplicada, sin cuerpo.
+        "400":
+          description: Solicitud o código inválido.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - DATOS_INVALIDOS
+                          - CODIGO_INVALIDO
+        "401":
+          description: Sesión ausente, inválida, expirada o revocada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - NO_AUTORIZADO
+        "403":
+          description: El rol no tiene permiso.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - SIN_PERMISO
+        "404":
+          description: Equipo inexistente o dado de baja.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ErrorRespuesta"
+                  - type: object
+                    properties:
+                      codigo:
+                        enum:
+                          - EQUIPO_NO_ENCONTRADO
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CriticidadEquipo:
+      type: string
+      enum:
+        - ALTA
+        - MEDIA
+        - BAJA
+    EstadoEquipo:
+      type: string
+      enum:
+        - OPERATIVO
+        - EN_FALLA
+        - EN_MANTENCIÓN
+        - FUERA_DE_SERVICIO
+    EquipoCrearSolicitud:
+      type: object
+      additionalProperties: false
+      required:
+        - codigo
+        - nombre
+        - ubicacion
+        - criticidad
+      properties:
+        codigo:
+          type: string
+          pattern: ^EQ-[0-9]{4}$
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+        ubicacion:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+        criticidad:
+          $ref: "#/components/schemas/CriticidadEquipo"
+        estado:
+          $ref: "#/components/schemas/EstadoEquipo"
+    EquipoActualizarSolicitud:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        codigo:
+          type: string
+          pattern: ^EQ-[0-9]{4}$
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+        ubicacion:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+        criticidad:
+          $ref: "#/components/schemas/CriticidadEquipo"
+        estado:
+          $ref: "#/components/schemas/EstadoEquipo"
+    EquipoRespuesta:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - codigo
+        - nombre
+        - ubicacion
+        - criticidad
+        - estado
+        - creadoEn
+        - actualizadoEn
+        - eliminadoEn
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        codigo:
+          type: string
+          pattern: ^EQ-[0-9]{4}$
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+        ubicacion:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+        criticidad:
+          $ref: "#/components/schemas/CriticidadEquipo"
+        estado:
+          $ref: "#/components/schemas/EstadoEquipo"
+        creadoEn:
+          type: string
+          format: date-time
+        actualizadoEn:
+          type: string
+          format: date-time
+        eliminadoEn:
+          type:
+            - string
+            - "null"
+          format: date-time
+    EquipoListaRespuesta:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EquipoRespuesta"
+        total:
+          type: integer
+          minimum: 0
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required:
+        - codigo
+        - mensaje
+      properties:
+        codigo:
+          type: string
+          enum:
+            - NO_AUTORIZADO
+            - SIN_PERMISO
+            - DATOS_INVALIDOS
+            - CODIGO_INVALIDO
+            - CODIGO_DUPLICADO
+            - EQUIPO_NO_ENCONTRADO
+        mensaje:
+          type: string
+          minLength: 1

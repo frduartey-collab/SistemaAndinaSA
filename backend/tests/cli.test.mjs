@@ -1,0 +1,40 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+import { createServer } from 'node:net';
+
+const exec = promisify(execFile);
+const root = fileURLToPath(new URL('../../', import.meta.url));
+test('CLI: seed y servidor reales, persistencia, permisos y rechazo de sobrescritura', async t => {
+  const dir = mkdtempSync(join(tmpdir(),'andina-cli-'));
+  const path = join(dir,'datos.sqlite');
+  const env = { ...process.env, DB_PATH: path, JWT_SECRET: 'secreto-de-prueba-cli-solamente-de-32-bytes', SEED_RUT: '12345678-5', SEED_PASSWORD: 'ClaveSoloParaPruebas-2026', SEED_ROL: 'BODEGA' };
+  t.after(() => rmSync(dir,{recursive:true,force:true}));
+  await exec(process.execPath,['backend/dist/seed.js'],{cwd:root,env});
+  assert.equal(statSync(path).mode & 0o777,0o600);
+  await assert.rejects(exec(process.execPath,['backend/dist/seed.js'],{cwd:root,env}),/ya existe/);
+  const probe = createServer();
+  await new Promise((resolve,reject)=>{probe.once('error',reject);probe.listen(0,'127.0.0.1',resolve);});
+  const port = probe.address().port;
+  await new Promise(resolve=>probe.close(resolve));
+  const child = spawn(process.execPath,['backend/dist/server.js'],{cwd:root,env:{...env,PORT:String(port)},stdio:['ignore','pipe','pipe']});
+  let ended = false;
+  const exit = new Promise(resolve=>child.once('exit',code=>{ended=true;resolve(code);}));
+  t.after(async()=>{if(!ended)child.kill('SIGTERM');await exit;});
+  await new Promise((resolve,reject)=>{
+    const timeout=setTimeout(()=>reject(new Error('Servidor no inició a tiempo')),10000);
+    child.stdout.on('data',data=>{if(String(data).includes('Andina API:')){clearTimeout(timeout);resolve();}});
+    child.once('error',error=>{clearTimeout(timeout);reject(error);});
+    child.once('exit',code=>{clearTimeout(timeout);reject(new Error('Servidor terminó: '+code));});
+  });
+  const response=await fetch(`http://127.0.0.1:${port}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rut:env.SEED_RUT,password:env.SEED_PASSWORD})});
+  assert.equal(response.status,200);const body=await response.json();assert.equal(body.usuario.rol,'BODEGA');
+  const headers={Authorization:'Bearer '+body.token};
+  assert.equal((await fetch(`http://127.0.0.1:${port}/activos`,{headers})).status,200);
+  child.kill('SIGTERM');assert.equal(await exit,0);
+});

@@ -1,0 +1,26 @@
+[
+  {
+    "command": "node --version",
+    "exit_code": 0,
+    "stdout": "v24.22.1\n",
+    "stderr": ""
+  },
+  {
+    "command": "npm --version",
+    "exit_code": 0,
+    "stdout": "11.9.0\n",
+    "stderr": ""
+  },
+  {
+    "command": "npm run build",
+    "exit_code": 0,
+    "stdout": "\n> sistema-andina-sa@0.1.0 build\n> tsc --project backend/tsconfig.json\n\n",
+    "stderr": ""
+  },
+  {
+    "command": "npm test",
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "npm error Missing script: \"test\"\nnpm error\nnpm error To see a list of scripts, run:\nnpm error   npm run\nnpm error A complete log of this run can be found in: /private/tmp/andina-npm-cache/_logs/2026-11-12T13_24_01_054Z-debug-0.log\n"
+  }
+]
