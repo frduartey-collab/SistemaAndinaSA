@@ -1,6 +1,6 @@
 import express, { type Request, type Response, type NextFunction, type ErrorRequestHandler } from 'express';
 import { randomUUID } from 'node:crypto';
-import { SignJWT, jwtVerify } from 'jose';
+import jwt from 'jsonwebtoken';
 import { Datos } from './datos.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken, rutValido } from './seguridad.js';
@@ -23,12 +23,11 @@ export function publico(user: UsuarioSesion): UsuarioSesion {
 export async function crearAplicacion(options: Options) {
   if (Buffer.byteLength(options.secret) < 32) throw new Error('JWT_SECRET debe tener al menos 32 bytes.');
   const now = options.now ?? Date.now;
-  const ttl = options.tokenSeconds ?? 3600;
+  const ttl = options.tokenSeconds ?? 28_800;
   const max = options.maxAttempts ?? 5;
-  const windowMs = options.windowMs ?? 900_000;
+  const windowMs = options.windowMs ?? 300_000;
   if (!Number.isInteger(ttl) || ttl < 1 || !Number.isInteger(max) || max < 1 || windowMs < 1) throw new Error('Políticas de sesión inválidas.');
   const datos = options.datos ?? new Datos();
-  const key = new TextEncoder().encode(options.secret);
   const dummy = await hashPassword(randomUUID());
   const app = express();
   app.disable('x-powered-by');
@@ -36,9 +35,8 @@ export async function crearAplicacion(options: Options) {
   app.use((_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
   app.use(express.json({ limit: '16kb', strict: true }));
 
-  function origen(req: Request): string { return req.ip ?? req.socket.remoteAddress ?? 'local'; }
-  function bloqueado(req: Request, res: Response): void {
-    res.setHeader('Retry-After', String(datos.reintentarEn(origen(req), now())));
+  function bloqueado(rut: string, res: Response): void {
+    res.setHeader('Retry-After', String(datos.reintentarEn(rut, now())));
     throw new ErrorAPI(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos. Intente más tarde.');
   }
   async function autenticado(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -46,7 +44,8 @@ export async function crearAplicacion(options: Options) {
       const match = /^Bearer ([^\s]+)$/i.exec(req.get('Authorization') ?? '');
       if (!match) throw new Error('Token ausente');
       const token = match[1];
-      const { payload } = await jwtVerify(token, key, { algorithms: ['HS256'], issuer: 'andina', audience: 'andina-api', currentDate: new Date(now()) });
+      const payload = jwt.verify(token, options.secret, { algorithms: ['HS256'], issuer: 'andina', audience: 'andina-api', clockTimestamp: Math.floor(now() / 1000) });
+      if (typeof payload === 'string') throw new Error('Claims inválidos');
       if (typeof payload.jti !== 'string' || typeof payload.sub !== 'string' || !/^[1-9][0-9]*$/.test(payload.sub)) throw new Error('Claims inválidos');
       const session = datos.sesion(payload.jti);
       if (!session || session.revocada !== 0 || Number(session.expira_en) <= now() || session.token_hash !== hashToken(token)
@@ -75,35 +74,33 @@ export async function crearAplicacion(options: Options) {
   }
 
   app.post('/auth/login', async (req, res) => {
-    const ip = origen(req);
-    if (datos.intentos(ip, now()) >= max) bloqueado(req, res);
-    let input: LoginSolicitud;
-    try { input = solicitud<LoginSolicitud>('auth', 'LoginSolicitud', req.body); }
-    catch (error) {
-      if (datos.fallarLogin(ip, now(), windowMs) >= max) bloqueado(req, res);
-      throw error;
-    }
-    if (!rutValido(input.rut)) {
-      if (datos.fallarLogin(ip, now(), windowMs) >= max) bloqueado(req, res);
-      throw new ErrorAPI(400, 'RUT_INVALIDO', 'El dígito verificador del RUT no es válido.');
-    }
+    const input = solicitud<LoginSolicitud>('auth', 'LoginSolicitud', req.body);
+    if (!rutValido(input.rut)) throw new ErrorAPI(400, 'RUT_INVALIDO', 'El RUT no es válido.');
+    const rut = input.rut.toUpperCase();
+    if (datos.intentos(rut, now()) >= max) bloqueado(rut, res);
     const user = datos.usuarioPorRut(input.rut);
     const correct = await verificarPassword(input.password, user?.passwordHash ?? dummy);
-    if (datos.intentos(ip, now()) >= max) bloqueado(req, res);
+    if (datos.intentos(rut, now()) >= max) bloqueado(rut, res);
     if (!user || !correct) {
-      if (datos.fallarLogin(ip, now(), windowMs) >= max) bloqueado(req, res);
+      datos.fallarLogin(rut, now(), windowMs);
       datos.auditar(null, 'LOGIN_RECHAZADO', null, now());
       throw new ErrorAPI(401, 'CREDENCIALES_INVALIDAS', 'Las credenciales no son válidas.');
     }
-    if (!user.activo) throw new ErrorAPI(403, 'USUARIO_INACTIVO', 'El usuario está inactivo.');
+    if (!user.activo) {
+      datos.fallarLogin(rut, now(), windowMs);
+      throw new ErrorAPI(403, 'USUARIO_INACTIVO', 'El usuario está inactivo.');
+    }
+    if (user.passwordHash.startsWith('scrypt$') && Buffer.byteLength(input.password) <= 72) {
+      datos.actualizarPassword(user.id, await hashPassword(input.password));
+    }
     const id = randomUUID();
     const issued = Math.floor(now() / 1000);
-    const token = await new SignJWT({}).setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-      .setSubject(String(user.id)).setJti(id).setIssuer('andina').setAudience('andina-api')
-      .setIssuedAt(issued).setExpirationTime(issued + ttl).sign(key);
+    const token = jwt.sign({ iat: issued }, options.secret, {
+      algorithm: 'HS256', subject: String(user.id), jwtid: id, issuer: 'andina', audience: 'andina-api', expiresIn: ttl,
+    });
     datos.transaccion(() => {
       datos.crearSesion(id, user.id, hashToken(token), (issued + ttl) * 1000);
-      datos.limpiarIntentos(ip);
+      datos.limpiarIntentos(rut);
       datos.auditar(user.id, 'LOGIN_CORRECTO', null, now());
     });
     const body: LoginRespuesta = { token, usuario: publico(user), expiraEn: ttl };
@@ -111,6 +108,8 @@ export async function crearAplicacion(options: Options) {
   });
   app.get('/auth/me', autenticado, (_req, res) => { res.json((res.locals as Context).usuario); });
   app.post('/auth/logout', autenticado, (_req, res) => {
+    // El YAML exige revocación: además de descartar el token en el cliente, invalidamos su sesión.
+    // No usamos logout stateless, cuyo token seguiría siendo válido hasta expirar.
     const context = res.locals as Context;
     datos.transaccion(() => { datos.revocar(context.sesionId); datos.auditar(context.usuario.id, 'LOGOUT', null, now()); });
     res.status(204).end();

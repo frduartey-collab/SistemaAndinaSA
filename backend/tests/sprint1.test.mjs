@@ -5,7 +5,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crearAplicacion } from '../dist/app.js';
-import { DatabaseSync } from 'node:sqlite';
+import Database from 'better-sqlite3';
+import { scryptSync } from 'node:crypto';
 import { Datos } from '../dist/datos.js';
 import { hashPassword, verificarPassword, rutValido } from '../dist/seguridad.js';
 import { esquema } from '../dist/validacion.js';
@@ -21,7 +22,7 @@ async function fixture(t, options = {}) {
             datos.crearUsuario({ rut, nombre: rol, rol: rol, activo: true, passwordHash: await baseHash });
     }
     let now = Date.UTC(2026, 10, 12, 12);
-    const backend = await crearAplicacion({ datos, secret: SECRET, now: () => now, tokenSeconds: options.ttl ?? 3600, maxAttempts: options.max ?? 5 });
+    const backend = await crearAplicacion({ datos, secret: SECRET, now: () => now, tokenSeconds: options.ttl ?? 28800, maxAttempts: options.max ?? 5 });
     const server = createServer(backend.app);
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
     const address = server.address();
@@ -41,6 +42,7 @@ async function fixture(t, options = {}) {
         assert.equal(response.status, 200);
         const body = await response.json();
         assert(esquema('auth', 'LoginRespuesta')(body));
+        assert.equal(body.expiraEn, options.ttl ?? 28800);
         return body.token;
     }
     return { datos, url, request, login, advance: (ms) => { now += ms; }, time: () => now };
@@ -79,16 +81,17 @@ test('GWT-HU01-04 RF-01: usuario inactivo con contraseña correcta recibe 403', 
     assert.equal(response.status, 403);
     assert.equal((await response.json()).codigo, 'USUARIO_INACTIVO');
 });
-test('GWT-HU01-05 RF-01/RNF-07: quinto fallo bloquea, Retry-After y desbloqueo por tiempo', async (t) => {
+test('GWT-HU01-05 RF-01/RNF-07: cinco fallos por RUT, sexto 429 y ventana de cinco minutos', async (t) => {
     const f = await fixture(t);
-    for (let i = 0; i < 4; i++)
+    for (let i = 0; i < 5; i++)
         assert.equal((await f.request('POST', '/auth/login', { rut: ruts.SUPERVISOR, password: 'mal' })).status, 401);
     const blocked = await f.request('POST', '/auth/login', { rut: ruts.SUPERVISOR, password: 'mal' });
     assert.equal(blocked.status, 429);
     assert.equal((await blocked.json()).codigo, 'DEMASIADOS_INTENTOS');
-    assert.equal(blocked.headers.get('Retry-After'), '900');
+    assert.equal(blocked.headers.get('Retry-After'), '300');
     assert.equal((await f.request('POST', '/auth/login', { rut: ruts.SUPERVISOR, password: PASSWORD })).status, 429);
-    f.advance(900001);
+    assert(await f.login('TECNICO')); // otro RUT desde la misma IP sigue permitido
+    f.advance(300001);
     assert(await f.login());
 });
 test('GWT-HU01-06 RF-01: logout 204 invalida el mismo token', async (t) => {
@@ -126,13 +129,23 @@ test('GWT-HU01-09 RF-01: payload incompleto o con propiedades adicionales da 400
         assert.equal((await response.json()).codigo, 'DATOS_INVALIDOS');
     }
 });
-test('GWT-HU01-10 RF-01/RNF-07: hash con sal distinta, comparación correcta y rechazo de hashes inválidos', async () => {
+test('GWT-HU01-10 RF-01/RNF-07: bcrypt con sal y compatibilidad de hashes anteriores', async (t) => {
     const a = await baseHash, b = await hashPassword(PASSWORD);
     assert.notEqual(a, b);
     assert(!a.includes(PASSWORD));
     assert(await verificarPassword(PASSWORD, a));
     assert(!(await verificarPassword('mal', a)));
     assert(!(await verificarPassword(PASSWORD, 'roto')));
+    assert(a.startsWith('$2b$12$'));
+    const salt = Buffer.alloc(16, 1);
+    const legacyHash = password => 'scrypt$32768$8$3$' + salt.toString('hex') + '$' + scryptSync(password, salt, 64, { N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024 }).toString('hex');
+    const f = await fixture(t);
+    f.datos.db.prepare('UPDATE usuarios SET password_hash=? WHERE rut=?').run(legacyHash(PASSWORD), ruts.SUPERVISOR);
+    await f.login();
+    assert(f.datos.usuarioPorRut(ruts.SUPERVISOR).passwordHash.startsWith('$2b$12$'));
+    const largo = 'x'.repeat(73), hashLargo = legacyHash(largo);
+    assert(await verificarPassword(largo, hashLargo));
+    await assert.rejects(hashPassword(largo), /72 bytes/);
     assert(rutValido('12345678-5'));
     assert(!rutValido('12345678-1'));
 });
@@ -315,7 +328,7 @@ test('GWT-HU02-14 RF-02: migra legado una vez, conserva IDs y persiste las bajas
     const directory = mkdtempSync(join(tmpdir(), 'andina-persistencia-'));
     t.after(() => rmSync(directory, { recursive: true, force: true }));
     const path = join(directory, 'datos.sqlite');
-    const legacy = new DatabaseSync(path);
+    const legacy = new Database(path);
     legacy.exec(`CREATE TABLE equipos (id INTEGER PRIMARY KEY,codigo TEXT UNIQUE,nombre TEXT,ubicacion TEXT,
       criticidad TEXT,estado TEXT,creado_en TEXT,actualizado_en TEXT,eliminado_en TEXT);
       INSERT INTO equipos VALUES(7,'EQ-0007','Prensa','A','ALTA','OPERATIVO','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',NULL);

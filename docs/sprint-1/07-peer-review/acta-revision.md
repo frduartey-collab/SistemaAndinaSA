@@ -8,12 +8,15 @@ Preparada: 12/11/2026. Revisor humano: PENDIENTE. Autor/implementador debe ident
 | --- | --- | --- |
 | Contratos antes de handlers | YAML y validación reproducible | Pendiente |
 | TypeScript estricto | npm run build | Pendiente |
-| Login, logout revocable y rol | GWT HU01 y HU02-08/09 | Pendiente |
+| Login con bcrypt 12, JWT de ocho horas, logout revocable y rol | GWT HU01, contrato auth y HU02-08/09 | Pendiente |
+| Cinco fallos 401 por RUT/5 min, siguiente 429 y persistencia del contador | GWT HU01-05 y SQLite | Pendiente |
+| Seed idempotente y compatibilidad scrypt sin truncamiento | seed(), seguridad.ts y conservación de usuarios existentes | Pendiente |
+| Conexión better-sqlite3 y conservación de usuarios/sesiones/activos | db.ts y DB_PATH de la base existente | Pendiente |
 | CRUD, búsqueda/paginación, código inmutable, duplicados y baja con FUERA_DE_SERVICIO | Contrato activos 0.2 y GWT HU02 | Pendiente |
 | Migración única de equipos a activos conservando IDs, códigos y bajas | Persistencia y registro de migración | Pendiente |
 | Sin contraseña/token en auditoría | GWT HU02-12 | Pendiente |
 | Trazabilidad y tres wireframes | Carpetas 04,05,06 | Pendiente |
-| Políticas que el informe no concreta | D-01..D-08 y acta PO | Pendiente |
+| Políticas que el informe no concreta | D-01..D-10 y acta PO | Pendiente |
 | Disponibilidad/carga productiva | No demostradas, fuera de aceptación técnica local | Pendiente |
 
 Hallazgos del revisor: por completar. Correcciones solicitadas: por completar. Resultado: pendiente. Nombre, firma y fecha: pendientes.

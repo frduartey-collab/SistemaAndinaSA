@@ -17,7 +17,8 @@ test('CLI: seed y servidor reales, persistencia, permisos y rechazo de sobrescri
   t.after(() => rmSync(dir,{recursive:true,force:true}));
   await exec(process.execPath,['backend/dist/seed.js'],{cwd:root,env});
   assert.equal(statSync(path).mode & 0o777,0o600);
-  await assert.rejects(exec(process.execPath,['backend/dist/seed.js'],{cwd:root,env}),/ya existe/);
+  const repetido = await exec(process.execPath,['backend/dist/seed.js'],{cwd:root,env:{...env,SEED_PASSWORD:'OtraClave-NoDebeCambiar',SEED_ROL:'JEFATURA'}});
+  assert.match(repetido.stdout,/ya existe/);
   const probe = createServer();
   await new Promise((resolve,reject)=>{probe.once('error',reject);probe.listen(0,'127.0.0.1',resolve);});
   const port = probe.address().port;

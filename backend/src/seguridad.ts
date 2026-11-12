@@ -1,4 +1,5 @@
-import { randomBytes, scrypt, timingSafeEqual, createHash } from 'node:crypto';
+import bcrypt from 'bcrypt';
+import { scrypt, timingSafeEqual, createHash } from 'node:crypto';
 
 export function rutValido(value: string): boolean {
   if (!/^[0-9]{7,8}-[0-9Kk]$/.test(value)) return false;
@@ -22,12 +23,17 @@ function derive(password: string, salt: Buffer): Promise<Buffer> {
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16);
-  const key = await derive(password, salt);
-  return `scrypt$32768$8$3$${salt.toString('hex')}$${key.toString('hex')}`;
+  if (!password || Buffer.byteLength(password) > 72) throw new Error('bcrypt requiere contraseña de 1 a 72 bytes.');
+  return bcrypt.hash(password, 12);
 }
 
 export async function verificarPassword(password: string, encoded: string): Promise<boolean> {
+  if (/^\$2[aby]\$/.test(encoded)) {
+    // bcrypt trunca a 72 bytes: rechazar entradas más largas evita aceptar sufijos diferentes.
+    if (Buffer.byteLength(password) > 72) return false;
+    return bcrypt.compare(password, encoded);
+  }
+  // Compatibilidad de lectura de hashes existentes; todas las altas nuevas usan bcrypt.
   const [algorithm, n, r, p, salt, expected] = encoded.split('$');
   if (algorithm !== 'scrypt' || n !== '32768' || r !== '8' || p !== '3'
       || !/^[0-9a-f]{32}$/.test(salt ?? '') || !/^[0-9a-f]{128}$/.test(expected ?? '')) return false;

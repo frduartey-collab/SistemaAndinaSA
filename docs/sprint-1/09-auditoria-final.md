@@ -1,4 +1,4 @@
-# Auditoría del Sprint 1 — estado tras actualizar HU-02
+# Auditoría del Sprint 1 — estado tras actualizar HU-01 y HU-02
 
 Actualizado: 12/11/2026. HU-01 (3 SP) + HU-02 (5 SP) = 8 SP planificados. **Implementación técnica verificada; cierre formal pendiente de revisión humana, aceptación del PO y firmas.**
 
@@ -6,16 +6,22 @@ Fuente: [Informe del sistema](../referencias/Informe_del_sistema.pdf), §3.1/3.2
 
 ## Línea base y verificación
 
-Repositorio [SistemaAndinaSA](https://github.com/frduartey-collab/SistemaAndinaSA). En la base inicial 9417b7c el build pasaba, pero npm test fallaba por ausencia de script (0 pruebas ejecutadas) y no había handlers ni SQLite. La implementación anterior, commit 21cf085, tenía 35 pruebas. Esta actualización conserva esas pruebas adaptadas y agrega únicamente cinco casos esenciales de Supertest.
+Repositorio [SistemaAndinaSA](https://github.com/frduartey-collab/SistemaAndinaSA). En la base inicial 9417b7c el build pasaba, pero npm test fallaba por ausencia de script (0 pruebas ejecutadas) y no había handlers ni SQLite. El commit 21cf085 tenía 35 pruebas y la actualización HU-02, commit 5450a0a, llegó a 40. Esta actualización conserva esas pruebas adaptadas y agrega cuatro casos esenciales de autenticación con Supertest.
 
 | Comando actual | Resultado | Evidencia |
 | --- | --- | --- |
-| npm run build | PASS; strict=true, 0 errores TypeScript | [build.log](evidencias/hu02-actualizacion/build.log) |
-| npm run validate:contracts | PASS; ocho operaciones | [contratos.log](evidencias/hu02-actualizacion/contratos.log) |
-| npm test | 40 passed, 0 failed, 0 skipped, 0 cancelled | [tests.log](evidencias/hu02-actualizacion/tests.log) |
-| Entorno y fecha | Node 24.22.1, npm 11.9.0, TypeScript 5.9.3 | [ejecucion.json](evidencias/hu02-actualizacion/ejecucion.json) |
+| npm run build | PASS; strict=true, 0 errores TypeScript | [build.log](evidencias/hu01-actualizacion/tests.log) |
+| npm run validate:contracts | PASS; ocho operaciones | [contratos.log](evidencias/hu01-actualizacion/contratos.log) |
+| npm test | 44 passed, 0 failed, 0 skipped, 0 cancelled | [tests.log](evidencias/hu01-actualizacion/tests.log) |
+| Entorno y fecha | Node 24.22.1, npm 11.9.0, TypeScript 5.9.3 | [ejecucion.json](evidencias/hu01-actualizacion/ejecucion.json) |
 
-Son 35 pruebas funcionales HTTP/persistencia, cuatro de contratos y una de comandos seed/start. La validación del metaschema OAS tiene la adaptación y limitaciones documentadas en [VALIDACION.md](02-contratos-api/VALIDACION.md). Los resultados locales no acreditan disponibilidad ni carga productiva.
+Son 39 pruebas funcionales HTTP/persistencia, cuatro de contratos y una de comandos seed/start. La validación del metaschema OAS tiene la adaptación y limitaciones documentadas en [VALIDACION.md](02-contratos-api/VALIDACION.md). Los resultados locales no acreditan disponibilidad ni carga productiva.
+
+## Actualización HU-01
+
+Persistencia mediante better-sqlite3 en backend/data/app.db, configurada en db.ts. El seed idempotente crea SUPERVISOR 11111111-1/admin123 (demostración local) y nunca sobrescribe usuarios. Altas nuevas con bcrypt; compatibilidad y actualización de hashes scrypt existentes al login cuando no exceden 72 bytes. Para reutilizar andina.sqlite se conserva DB_PATH explícito; no se mueven ni eliminan bases anteriores.
+
+JWT con jsonwebtoken, HS256 y 28800 segundos. Límite por RUT normalizado: cinco fallos permitidos en cinco minutos y siguiente intento 429. Logout sigue revocando sesión para cumplir el contrato. No se adoptó la alternativa stateless condicional, que incumpliría la invalidación del token exigida por el YAML. Desviaciones HTTP: cero; no hay rutas ni campos públicos nuevos. Instalación/CI usan npm ci con scripts nativos habilitados.
 
 ## Contrato ↔ código
 
@@ -23,7 +29,7 @@ Contratos [auth](02-contratos-api/auth.openapi.yaml) y [activos](02-contratos-ap
 
 | Endpoint | Existe en código | Errores coinciden | Observaciones |
 | --- | --- | --- | --- |
-| POST /auth/login | Sí | Sí: 400 RUT_INVALIDO/DATOS_INVALIDOS, 401 CREDENCIALES_INVALIDAS, 403 USUARIO_INACTIVO, 429 DEMASIADOS_INTENTOS | RUT módulo 11, contraseña scrypt, JWT y sesión revocable |
+| POST /auth/login | Sí | Sí: 400 RUT_INVALIDO/DATOS_INVALIDOS, 401 CREDENCIALES_INVALIDAS, 403 USUARIO_INACTIVO, 429 DEMASIADOS_INTENTOS | RUT módulo 11, contraseña bcrypt, JWT de 8 horas y sesión revocable |
 | GET /auth/me | Sí | Sí: 401 NO_AUTORIZADO | Perfil actual sin contraseña/hash |
 | POST /auth/logout | Sí | Sí: 401 NO_AUTORIZADO | 204 vacío y revocación persistida |
 | GET /activos | Sí | Sí: 400 DATOS_INVALIDOS, 401 NO_AUTORIZADO, 403 SIN_PERMISO | q literal en código/nombre, criticidad/estado, page/size; mismo filtro para total/items; excluye deleted_at no nulo |

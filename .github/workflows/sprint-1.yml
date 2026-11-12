@@ -9,7 +9,7 @@ jobs:
         with:
           node-version: '24.22.1'
           cache: npm
-      - run: npm ci --ignore-scripts
+      - run: npm ci
       - run: npm run validate:contracts
       - run: npm run build
       - run: npm test

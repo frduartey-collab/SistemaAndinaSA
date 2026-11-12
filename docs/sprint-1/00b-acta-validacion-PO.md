@@ -11,8 +11,10 @@ Contratos auth/activos, matrices GWT, tres wireframes, trazabilidad, resultados 
 | SUPERVISOR/JEFATURA escriben; TECNICO/TRABAJADOR leen; BODEGA sin acceso a activos | Especificación del usuario incorporada; aceptación formal pendiente |
 | EQ-0000 inmutable en PATCH; baja con deleted_at y FUERA_DE_SERVICIO; código no reutilizable | Especificación del usuario incorporada; aceptación formal pendiente |
 | Campos de activos, filtros q/criticidad/estado y page/size; sin transiciones HU-04/HU-05 | Especificación del usuario incorporada; aceptación formal pendiente |
-| Bloqueo al quinto fallo, 15 minutos, por IP | Pendiente |
-| JWT por 60 minutos, logout revocable | Pendiente |
+| Cinco fallos 401 por RUT normalizado en cinco minutos; siguiente intento 429 con Retry-After | Especificación HU-01 incorporada; aceptación formal pendiente |
+| JWT de ocho horas con jsonwebtoken; logout revocable conforme al contrato | Especificación HU-01 incorporada; aceptación formal pendiente |
+| bcrypt 12 y compatibilidad/migración scrypt sin truncar contraseñas heredadas mayores de 72 bytes | Especificación HU-01 incorporada; aceptación formal pendiente |
+| Seed DEMO idempotente 11111111-1/admin123 y conexión better-sqlite3 en db.ts | Especificación HU-01 incorporada; aceptación formal pendiente |
 | Wireframes suficientes; frontend funcional fuera de Sprint 1 | Pendiente |
 | Aceptación HU-01 | Pendiente |
 | Aceptación HU-02 | Pendiente |

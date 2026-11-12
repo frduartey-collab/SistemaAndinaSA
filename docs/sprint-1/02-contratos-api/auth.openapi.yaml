@@ -2,8 +2,9 @@ openapi: 3.1.0
 info:
   title: Manufacturas Andina — Autenticación
   version: 0.2.0
-  description: RF-01 / HU-01. RUT por módulo 11, sesiones JWT revocables y
-    permisos por rol. Políticas documentadas para revisión del PO.
+  description: RF-01 / HU-01. RUT por módulo 11, JWT revocable de 8 horas y permisos por rol.
+    bcrypt para hashes nuevos. Máximo cinco fallos por RUT en cinco minutos; el intento
+    siguiente devuelve 429. La sesión se revoca en logout conforme al contrato.
 tags:
   - name: Autenticación
 security:

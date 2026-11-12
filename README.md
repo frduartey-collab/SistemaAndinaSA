@@ -4,22 +4,27 @@ Backend Node.js + Express + TypeScript estricto y SQLite. Alcance: HU-01 (RF-01,
 
 ## Preparación local
 
-Requiere Node.js 24.22.1 (rama 24) y npm. SQLite viene incluido en Node.
+Requiere Node.js 24.22.1 (rama 24) y npm. La conexión SQLite de esta iteración usa better-sqlite3, un componente nativo instalado por npm.
 
-1. `npm ci --ignore-scripts`
+1. `npm ci` instala las dependencias y sus componentes nativos. No uses `--ignore-scripts` con better-sqlite3.
 2. `cp .env.example .env`
 3. Genera una clave con `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` y copia el resultado a JWT_SECRET en .env.
-4. Define SEED_PASSWORD con una contraseña de desarrollo de al menos 12 caracteres. SEED_RUT debe ser válido; 12345678-5 es de demostración. SEED_ROL admite SUPERVISOR, TECNICO, TRABAJADOR, BODEGA o JEFATURA.
-5. `npm run seed` crea ese usuario sin reemplazar usuarios existentes.
-6. `npm start` inicia en http://127.0.0.1:3000 después de que seed haya compilado. Si no ejecutaste seed, usa `npm run build` antes. `npm run dev` compila e inicia.
+4. `npm run build` compila el backend.
+5. `npm start` inicia en http://127.0.0.1:3000. `npm run dev` compila e inicia.
 
-Para crear otro usuario de demostración, cambia SEED_RUT/SEED_ROL y repite seed. BODEGA puede autenticarse, pero no acceder a activos. La creación de usuarios por HTTP está fuera de HU-01/HU-02. .env, claves, contraseñas y bases de datos quedan excluidos de Git; no hay secretos ni cuentas de producción precargados.
+Al arrancar, el servidor ejecuta seed() de forma idempotente: crea el usuario SUPERVISOR de demostración con RUT **11111111-1** y contraseña **admin123**, solo si ese RUT no existe. Si ya existe, conserva contraseña, rol y demás datos; no restablece la cuenta.
+
+La base por defecto es `backend/data/app.db`, abierta mediante db.ts y better-sqlite3. Para seguir usando la base de la versión anterior, define `DB_PATH=backend/data/andina.sqlite` en .env antes del arranque: así conservas usuarios, sesiones, activos y auditoría en el archivo existente.
+
+`npm run seed` permite crear otros usuarios de demostración con SEED_RUT, SEED_PASSWORD y SEED_ROL opcionales en .env. Sus valores por defecto son 11111111-1, admin123 y SUPERVISOR; repetirlo no reemplaza un usuario existente. Los roles admitidos son SUPERVISOR, TECNICO, TRABAJADOR, BODEGA y JEFATURA. BODEGA puede autenticarse, pero no acceder a activos. No hay un endpoint de creación de usuarios en HU-01/HU-02.
+
+**Credencial DEMO local:** 11111111-1 / admin123. Es una cuenta de desarrollo conocida; no representa una credencial de producción. JWT_SECRET permanece vacío en .env.example y debe configurarse. .env, claves y bases de datos quedan excluidos de Git.
 
 ## Verificación
 
 - `npm run validate:contracts`: estructura OpenAPI, referencias y schemas.
 - `npm run build`: TypeScript estricto.
-- `npm test`: compila y ejecuta las pruebas existentes adaptadas y los cinco casos esenciales de activos con supertest, usando bases aisladas.
+- `npm test`: compila y ejecuta las pruebas existentes adaptadas y los casos esenciales de autenticación y activos con supertest, usando bases aisladas.
 
 Los resultados y su fecha se registran en [el estado de implementación](docs/sprint-1/08-estado-codex.md).
 
@@ -52,15 +57,17 @@ DELETE conserva la fila y el código reservado: asigna deleted_at y fija estado 
 
 ## Persistencia y migración
 
+La conexión better-sqlite3 se centraliza en db.ts; se conservan usuarios, sesiones, activos y sus campos. Los intentos de login usan intentos_login.origen como clave de RUT normalizado, en lugar de IP, sin perder la persistencia al reiniciar.
+
 La tabla de trabajo es activos. Al abrir una base de la versión anterior, una migración transaccional de una sola ejecución copia equipos conservando IDs, códigos y fechas de alta/baja. Los registros dados de baja se copian con FUERA_DE_SERVICIO; marca/modelo parten en null y uso_acumulado_horas en 0. La tabla equipos se conserva como legado y no se usa en las rutas nuevas. El registro de migración evita reimportar datos en cada arranque. Se reutilizan la conexión SQLite, usuarios, sesiones y auditoría.
 
 ## Seguridad y decisiones
 
 - Acceso a activos según la matriz solicitada por el usuario el 12/11/2026; sustituye la política anterior de SUPERVISOR único escritor y cinco roles lectores.
 - Código EQ- y cuatro dígitos, inmutable y único incluso tras la baja.
-- Quinto intento de login fallido por IP bloquea durante el resto de la ventana de 15 minutos; Retry-After indica los segundos pendientes.
-- JWT HS256 de 3600 segundos con sesión persistida y revocable; rol y estado del usuario se consultan en cada petición.
-- Contraseñas scrypt con sal aleatoria de 16 bytes, N=32768, r=8, p=3 y salida de 64 bytes. SQLite en disco tiene permisos 0600.
+- Cinco intentos de login fallidos por RUT normalizado reciben 401 dentro de una ventana de cinco minutos. El siguiente intento recibe 429 DEMASIADOS_INTENTOS con Retry-After; otro RUT mantiene un contador independiente. Los contadores persisten en SQLite.
+- JWT HS256 firmado con jsonwebtoken, vigente durante ocho horas (28800 segundos), con sesión persistida y revocable. Rol y estado del usuario se consultan en cada petición. Logout invalida el token de esa sesión, como exige el contrato; no se adopta logout stateless.
+- Contraseñas nuevas con bcrypt, coste 12. El login conserva compatibilidad con hashes scrypt anteriores: tras autenticar una contraseña de hasta 72 bytes, actualiza su hash a bcrypt. Si la contraseña heredada supera 72 bytes, conserva scrypt para evitar truncamiento. SQLite en disco tiene permisos 0600.
 - El token se guarda como SHA-256. La auditoría guarda actor, acción, entidad y fecha, sin contraseñas ni tokens legibles.
 
 El servidor escucha en localhost y no confía en X-Forwarded-For. El despliegue requiere TLS, proxy confiable, operación de secretos, respaldo y mediciones RNF. Esta entrega local no acredita disponibilidad 99,5% ni 50 usuarios concurrentes.

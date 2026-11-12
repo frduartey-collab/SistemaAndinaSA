@@ -1,0 +1,7 @@
+
+> sistema-andina-sa@0.1.0 validate:contracts
+> node scripts/validar-contratos.mjs
+
+OK auth: OpenAPI 3.1, claves únicas, referencias, schemas 2020-12 y ejemplos
+OK activos: OpenAPI 3.1, claves únicas, referencias, schemas 2020-12 y ejemplos
+OK 8 operaciones contractuales
