@@ -1,6 +1,6 @@
-# Modelo de datos implementado
+# Modelo de datos de HU-01 y HU-02
 
-SQLite con foreign_keys=ON, transacciones en escrituras de equipos y consultas parametrizadas.
+SQLite reutiliza la conexión, usuarios y sesiones existentes. foreign_keys=ON, escrituras y auditoría transaccionales, consultas parametrizadas.
 
 ```mermaid
 erDiagram
@@ -21,16 +21,18 @@ erDiagram
     integer expira_en
     integer revocada
   }
-  equipos {
+  activos {
     integer id PK
     text codigo UK
     text nombre
+    text marca "nullable"
+    text modelo "nullable"
     text ubicacion
     text criticidad
     text estado
-    text creado_en
-    text actualizado_en
-    text eliminado_en
+    real uso_acumulado_horas
+    text fecha_alta
+    text deleted_at "nullable"
   }
   auditoria {
     integer id PK
@@ -46,4 +48,17 @@ erDiagram
   }
 ```
 
-eliminado_en nulo significa equipo consultable; con fecha significa baja lógica. La unicidad del código abarca ambas situaciones. entidad_id en auditoría identifica al equipo afectado y no es una FK genérica; los eventos de autenticación usan entidad nula. actor_id puede ser nulo en intentos rechazados. No se almacena contraseña ni token legible en auditoría.
+## Reglas de activos
+
+- deleted_at nulo significa activo consultable; con fecha significa baja lógica y estado FUERA_DE_SERVICIO. La unicidad de codigo abarca ambas situaciones.
+- En creación: estado OPERATIVO, uso_acumulado_horas 0 y fecha_alta del servidor. Marca/modelo opcionales parten en null.
+- PATCH solo cambia campos presentes permitidos; no cambia codigo, estado, fecha_alta ni deleted_at. Uso acumulado debe ser no negativo; null permite vaciar marca/modelo.
+- No se implementa una máquina de estados de OT/intervenciones.
+
+entidad_id en auditoría identifica al activo afectado y no es una FK genérica. Autenticación usa entidad nula; actor_id puede ser nulo en intentos rechazados. No se guardan contraseñas ni tokens legibles en auditoría.
+
+## Migración desde equipos
+
+La migración transaccional copia una sola vez los registros de la tabla anterior equipos a activos, preservando id, codigo, nombre, ubicacion, criticidad, fechas y bajas. creado_en pasa a fecha_alta y eliminado_en a deleted_at; las bajas se copian con estado FUERA_DE_SERVICIO. Marca/modelo se inicializan en null y uso_acumulado_horas en 0. Conservar IDs mantiene la referencia lógica de la auditoría histórica.
+
+La tabla equipos permanece como legado; las rutas trabajan únicamente con activos. Un registro de migración impide volver a importar la copia histórica al reiniciar. No se eliminan filas de ninguna tabla de activos como parte de la baja.

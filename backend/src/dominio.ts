@@ -13,22 +13,45 @@ export interface UsuarioSesion { id: number; rut: string; nombre: string; rol: R
 export interface LoginRespuesta { token: string; usuario: UsuarioSesion; expiraEn: number }
 export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_INACTIVO'
   | 'DEMASIADOS_INTENTOS' | 'DATOS_INVALIDOS' | 'NO_AUTORIZADO' | 'SIN_PERMISO'
-  | 'CODIGO_INVALIDO' | 'CODIGO_DUPLICADO' | 'EQUIPO_NO_ENCONTRADO';
+  | 'CODIGO_FORMATO_INVALIDO' | 'CODIGO_DUPLICADO' | 'ACTIVO_NO_ENCONTRADO';
 export interface ErrorRespuesta { codigo: CodigoError; mensaje: string }
 
-export interface EquipoCrearSolicitud {
+export interface ActivoCrearSolicitud {
   codigo: CodigoEquipo;
   nombre: string;
+  marca?: string | null;
+  modelo?: string | null;
   ubicacion: string;
   criticidad: CriticidadEquipo;
-  estado?: EstadoEquipo;
 }
-export type EquipoActualizarSolicitud = Partial<EquipoCrearSolicitud>;
-export interface EquipoRespuesta extends EquipoCrearSolicitud {
+export interface ActivoActualizarSolicitud {
+  nombre?: string;
+  marca?: string | null;
+  modelo?: string | null;
+  ubicacion?: string;
+  criticidad?: CriticidadEquipo;
+  uso_acumulado_horas?: number;
+  /** Compatibilidad de entrada: cualquier valor recibido se ignora. */
+  codigo?: unknown;
+}
+export interface ActivoRespuesta {
   id: number;
+  codigo: CodigoEquipo;
+  nombre: string;
+  marca: string | null;
+  modelo: string | null;
+  ubicacion: string;
+  criticidad: CriticidadEquipo;
   estado: EstadoEquipo;
-  creadoEn: string;
-  actualizadoEn: string;
-  eliminadoEn: string | null;
+  uso_acumulado_horas: number;
+  fecha_alta: string;
+  deleted_at: string | null;
 }
-export interface EquipoListaRespuesta { items: EquipoRespuesta[]; total: number }
+export interface ConsultaActivos {
+  q?: string;
+  criticidad?: CriticidadEquipo;
+  estado?: EstadoEquipo;
+  page: number;
+  size: number;
+}
+export interface PaginaActivos { items: ActivoRespuesta[]; total: number; page: number; size: number }

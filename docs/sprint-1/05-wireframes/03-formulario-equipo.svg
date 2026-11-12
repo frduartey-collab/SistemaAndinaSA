@@ -1,1 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800"><style>text{font-family:Arial,sans-serif;fill:#202832}.title{font-size:28px;font-weight:bold}.normal{font-size:18px}.small{font-size:15px}.label{font-size:17px;font-weight:bold}rect{rx:7}</style><rect width="1200" height="800" fill="#f4f5f7"/><rect x="0" y="0" width="1200" height="92" fill="#dfe3e8"/><text x="50" y="56" class="title">Manufacturas Andina · Ficha de equipo</text><text x="70" y="145" class="title">Crear / editar equipo</text><text x="70" y="205" class="label">Código</text><rect x="70" y="223" width="500" height="60" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/><text x="85" y="260" class="normal">EQ-0001</text><text x="620" y="205" class="label">Nombre</text><rect x="620" y="223" width="500" height="60" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/><text x="635" y="260" class="normal">Prensa</text><text x="70" y="330" class="label">Ubicación</text><rect x="70" y="348" width="500" height="60" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/><text x="85" y="385" class="normal">Planta A</text><text x="620" y="330" class="label">Criticidad</text><rect x="620" y="348" width="500" height="60" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/><text x="635" y="385" class="normal">ALTA  /  MEDIA  /  BAJA</text><text x="70" y="455" class="label">Estado</text><rect x="70" y="473" width="500" height="60" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/><text x="85" y="510" class="normal">OPERATIVO  /  EN_FALLA / ...</text><text x="70" y="590" class="small">Zona de errores del formulario: campos requeridos o código ya reservado.</text><rect x="70" y="635" width="240" height="58" fill="#d9dfe5" stroke="#8c96a2" stroke-width="1.5"/><text x="143" y="672" class="label">Guardar</text><rect x="340" y="635" width="240" height="58" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/><text x="410" y="672" class="label">Cancelar</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+<style>text{font-family:Arial,sans-serif;fill:#202832}.title{font-size:28px;font-weight:bold}.normal{font-size:18px}.small{font-size:15px}.label{font-size:17px;font-weight:bold}rect{rx:7}</style>
+<rect width="1200" height="800" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1200" height="92" fill="#dfe3e8"/>
+<text x="50" y="56" class="title">Manufacturas Andina · Ficha de activo</text>
+<text x="70" y="145" class="title">Crear / editar activo</text>
+<text x="70" y="195" class="label">Código (fijo al editar)</text>
+<rect x="70" y="209" width="500" height="50" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="85" y="241" class="normal">EQ-0001</text>
+<text x="620" y="195" class="label">Nombre</text>
+<rect x="620" y="209" width="500" height="50" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="635" y="241" class="normal">Prensa</text>
+<text x="70" y="295" class="label">Marca (opcional)</text>
+<rect x="70" y="309" width="500" height="50" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="85" y="341" class="normal">Sin especificar</text>
+<text x="620" y="295" class="label">Modelo (opcional)</text>
+<rect x="620" y="309" width="500" height="50" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="635" y="341" class="normal">Sin especificar</text>
+<text x="70" y="395" class="label">Ubicación</text>
+<rect x="70" y="409" width="500" height="50" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="85" y="441" class="normal">Planta A</text>
+<text x="620" y="395" class="label">Criticidad</text>
+<rect x="620" y="409" width="500" height="50" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="635" y="441" class="normal">ALTA  /  MEDIA  /  BAJA</text>
+<text x="70" y="495" class="label">Uso acumulado (horas)</text>
+<rect x="70" y="509" width="500" height="50" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="85" y="541" class="normal">0</text>
+<text x="620" y="495" class="label">Estado (solo informativo)</text>
+<rect x="620" y="509" width="500" height="50" fill="#e9edf1" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="635" y="541" class="normal">OPERATIVO</text>
+<text x="70" y="595" class="small">Al crear: uso 0 y estado OPERATIVO. Las fechas las asigna el servidor.</text>
+<text x="70" y="622" class="small">Zona de errores: campos requeridos, código inválido o código ya reservado.</text>
+<rect x="70" y="665" width="240" height="58" fill="#d9dfe5" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="143" y="702" class="label">Guardar</text>
+<rect x="340" y="665" width="240" height="58" fill="#fff" stroke="#8c96a2" stroke-width="1.5"/>
+<text x="410" y="702" class="label">Cancelar</text>
+</svg>

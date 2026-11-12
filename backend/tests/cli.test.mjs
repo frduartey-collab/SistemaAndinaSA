@@ -35,6 +35,6 @@ test('CLI: seed y servidor reales, persistencia, permisos y rechazo de sobrescri
   const response=await fetch(`http://127.0.0.1:${port}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rut:env.SEED_RUT,password:env.SEED_PASSWORD})});
   assert.equal(response.status,200);const body=await response.json();assert.equal(body.usuario.rol,'BODEGA');
   const headers={Authorization:'Bearer '+body.token};
-  assert.equal((await fetch(`http://127.0.0.1:${port}/activos`,{headers})).status,200);
+  assert.equal((await fetch(`http://127.0.0.1:${port}/activos`,{headers})).status,403);
   child.kill('SIGTERM');assert.equal(await exit,0);
 });

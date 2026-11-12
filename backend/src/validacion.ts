@@ -3,11 +3,12 @@ import { createRequire } from 'node:module';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv';
 import { parseDocument } from 'yaml';
+import type { ConsultaActivos } from './dominio.js';
 import { ErrorAPI } from './errores.js';
 
 type Contrato = 'auth' | 'activos';
 interface Documento { components: { schemas: Record<string, object> } }
-const ajv = new Ajv2020({ strict: false, allErrors: true });
+const ajv = new Ajv2020({ strict: false, strictNumbers: true, allErrors: true });
 const addFormats = createRequire(import.meta.url)('ajv-formats') as (instance: Ajv2020) => void;
 addFormats(ajv);
 const cache = new Map<string, ValidateFunction>();
@@ -30,9 +31,9 @@ export function esquema(contrato: Contrato, nombre: string): ValidateFunction {
 export function solicitud<T>(contrato: Contrato, nombre: string, raw: unknown): T {
   const accepted = Boolean(esquema(contrato, nombre)(raw));
   if (!accepted) {
-    if (contrato === 'activos' && typeof raw === 'object' && raw !== null && 'codigo' in raw
+    if (contrato === 'activos' && nombre === 'ActivoCrearSolicitud' && typeof raw === 'object' && raw !== null && 'codigo' in raw
         && (typeof raw.codigo !== 'string' || !/^EQ-[0-9]{4}$/.test(raw.codigo))) {
-      throw new ErrorAPI(400, 'CODIGO_INVALIDO', 'El código debe tener el formato EQ-0000.');
+      throw new ErrorAPI(400, 'CODIGO_FORMATO_INVALIDO', 'El código debe tener el formato EQ-0000.');
     }
     if (contrato === 'auth' && typeof raw === 'object' && raw !== null && 'rut' in raw
         && (typeof raw.rut !== 'string' || !/^[0-9]{7,8}-[0-9Kk]$/.test(raw.rut))) {
@@ -48,4 +49,22 @@ export function idPositivo(value: unknown): number {
     throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'El identificador debe ser un entero positivo.');
   }
   return Number(value);
+}
+
+/** Normaliza solo los enteros HTTP; los demás filtros se validan desde OpenAPI. */
+export function consultaActivos(query: Record<string, unknown>): ConsultaActivos {
+  function entero(raw: unknown, defecto: number): number {
+    if (raw === undefined) return defecto;
+    if (typeof raw !== 'string' || !/^[1-9][0-9]*$/.test(raw)) {
+      throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'page y size deben ser enteros positivos.');
+    }
+    return Number(raw);
+  }
+  const value = solicitud<ConsultaActivos>('activos', 'ConsultaActivos', {
+    ...query, page: entero(query.page, 1), size: entero(query.size, 20),
+  });
+  if (!Number.isSafeInteger((value.page - 1) * value.size)) {
+    throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'La página está fuera de rango.');
+  }
+  return value;
 }

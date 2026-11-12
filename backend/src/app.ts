@@ -4,8 +4,8 @@ import { SignJWT, jwtVerify } from 'jose';
 import { Datos } from './datos.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken, rutValido } from './seguridad.js';
-import { solicitud, idPositivo } from './validacion.js';
-import type { LoginSolicitud, LoginRespuesta, UsuarioSesion, ErrorRespuesta, EquipoCrearSolicitud, EquipoActualizarSolicitud } from './dominio.js';
+import { solicitud, idPositivo, consultaActivos } from './validacion.js';
+import type { LoginSolicitud, LoginRespuesta, UsuarioSesion, ErrorRespuesta, ActivoCrearSolicitud, ActivoActualizarSolicitud } from './dominio.js';
 
 interface Options {
   secret: string;
@@ -61,9 +61,16 @@ export async function crearAplicacion(options: Options) {
       next(new ErrorAPI(401, 'NO_AUTORIZADO', 'Se requiere una sesión válida.'));
     }
   }
-  function supervisor(_req: Request, res: Response, next: NextFunction): void {
-    if ((res.locals as Context).usuario.rol !== 'SUPERVISOR') {
-      next(new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene permiso para modificar equipos.'));
+  function leerActivos(_req: Request, res: Response, next: NextFunction): void {
+    const rol = (res.locals as Context).usuario.rol;
+    if (!['SUPERVISOR', 'JEFATURA', 'TECNICO', 'TRABAJADOR'].includes(rol)) {
+      next(new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene acceso a activos.'));
+    } else next();
+  }
+  function escribirActivos(_req: Request, res: Response, next: NextFunction): void {
+    const rol = (res.locals as Context).usuario.rol;
+    if (rol !== 'SUPERVISOR' && rol !== 'JEFATURA') {
+      next(new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene permiso para modificar activos.'));
     } else next();
   }
 
@@ -109,26 +116,23 @@ export async function crearAplicacion(options: Options) {
     res.status(204).end();
   });
 
-  app.get('/activos', autenticado, (req, res) => {
-    if (Object.keys(req.query).some(key => key !== 'limit' && key !== 'offset')) throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'Parámetros de consulta desconocidos.');
-    const limitRaw = req.query.limit ?? '50', offsetRaw = req.query.offset ?? '0';
-    if (typeof limitRaw !== 'string' || !/^[0-9]+$/.test(limitRaw) || typeof offsetRaw !== 'string' || !/^[0-9]+$/.test(offsetRaw)) throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'Paginación inválida.');
-    const limit = Number(limitRaw), offset = Number(offsetRaw);
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger(offset)) throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'Paginación fuera de rango.');
-    res.json(datos.listar(limit, offset));
+  app.get('/activos', autenticado, leerActivos, (req, res) => {
+    res.json(datos.listar(consultaActivos(req.query)));
   });
-  app.post('/activos', autenticado, supervisor, (req, res) => {
-    const input = solicitud<EquipoCrearSolicitud>('activos', 'EquipoCrearSolicitud', req.body);
+  app.post('/activos', autenticado, escribirActivos, (req, res) => {
+    const input = solicitud<ActivoCrearSolicitud>('activos', 'ActivoCrearSolicitud', req.body);
     const result = datos.crear(input, (res.locals as Context).usuario.id, now());
     res.location('/activos/' + result.id).status(201).json(result);
   });
-  app.get('/activos/:id', autenticado, (req, res) => { res.json(datos.obtener(idPositivo(req.params.id))); });
-  app.patch('/activos/:id', autenticado, supervisor, (req, res) => {
+  app.get('/activos/:id', autenticado, leerActivos, (req, res) => {
+    res.json(datos.obtener(idPositivo(req.params.id)));
+  });
+  app.patch('/activos/:id', autenticado, escribirActivos, (req, res) => {
     const id = idPositivo(req.params.id);
-    const input = solicitud<EquipoActualizarSolicitud>('activos', 'EquipoActualizarSolicitud', req.body);
+    const input = solicitud<ActivoActualizarSolicitud>('activos', 'ActivoActualizarSolicitud', req.body);
     res.json(datos.modificar(id, input, (res.locals as Context).usuario.id, now()));
   });
-  app.delete('/activos/:id', autenticado, supervisor, (req, res) => {
+  app.delete('/activos/:id', autenticado, escribirActivos, (req, res) => {
     datos.eliminar(idPositivo(req.params.id), (res.locals as Context).usuario.id, now());
     res.status(204).end();
   });

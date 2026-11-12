@@ -26,10 +26,10 @@ test('CONTRATOS: enums de dominio y YAML coinciden', () => {
 });
 test('CONTRATOS: requeridos de auth, equipo y rechazo de campos inesperados', () => {
   assert.deepEqual(auth.components.schemas.LoginSolicitud.required, ['rut','password']);
-  assert.deepEqual(activos.components.schemas.EquipoCrearSolicitud.required, ['codigo','nombre','ubicacion','criticidad']);
-  assert.equal(esquema('activos','EquipoCrearSolicitud')({codigo:'EQ-0001',nombre:'Bomba',ubicacion:'A',criticidad:'ALTA'}), true);
-  assert.equal(esquema('activos','EquipoCrearSolicitud')({codigo:'EQ-ABC',nombre:'Bomba',ubicacion:'A',criticidad:'ALTA'}), false);
-  assert.equal(esquema('activos','EquipoCrearSolicitud')({codigo:'EQ-0001',nombre:'Bomba',ubicacion:'A',criticidad:'ALTA',sql:'DROP'}), false);
+  assert.deepEqual(activos.components.schemas.ActivoCrearSolicitud.required, ['codigo','nombre','ubicacion','criticidad']);
+  assert.equal(esquema('activos','ActivoCrearSolicitud')({codigo:'EQ-0001',nombre:'Bomba',ubicacion:'A',criticidad:'ALTA'}), true);
+  assert.equal(esquema('activos','ActivoCrearSolicitud')({codigo:'EQ-ABC',nombre:'Bomba',ubicacion:'A',criticidad:'ALTA'}), false);
+  assert.equal(esquema('activos','ActivoCrearSolicitud')({codigo:'EQ-0001',nombre:'Bomba',ubicacion:'A',criticidad:'ALTA',sql:'DROP'}), false);
 });
 test('CONTRATOS: las respuestas 204 no tienen cuerpo definido', () => {
   assert.equal(auth.paths['/auth/logout'].post.responses['204'].content, undefined);

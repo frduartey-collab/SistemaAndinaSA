@@ -1,41 +1,55 @@
 openapi: 3.1.0
 info:
   title: Manufacturas Andina - Gestión de activos
-  version: 0.1.0
-  description: "RF-02 / HU-02. SUPERVISOR escribe; todos los roles consultan.
-    DELETE es lógico y los códigos no se reutilizan. Formato: EQ- y cuatro
-    dígitos. Decisiones propuestas pendientes de ratificación del PO."
+  version: 0.2.0
+  description: RF-02 / HU-02. SUPERVISOR y JEFATURA crean/editan/dan de baja; TECNICO y TRABAJADOR
+    solo consultan; BODEGA sin acceso. Código inmutable, único incluso tras baja. No implementa
+    transiciones de estado de HU-04/HU-05.
 security:
   - bearerAuth: []
 paths:
   /activos:
     get:
-      operationId: listarEquipos
-      summary: Consultar equipos activos
+      operationId: listarActivos
+      summary: Consultar activos con búsqueda, filtros y paginación
       parameters:
-        - name: limit
+        - name: q
           in: query
-          schema:
+          schema: &a10
+            type: string
+            maxLength: 120
+            description: Subcadena literal en código o nombre, sin distinguir mayúsculas ASCII.
+        - name: criticidad
+          in: query
+          schema: &a11
+            $ref: "#/components/schemas/CriticidadEquipo"
+        - name: estado
+          in: query
+          schema: &a12
+            $ref: "#/components/schemas/EstadoEquipo"
+        - name: page
+          in: query
+          schema: &a13
+            type: integer
+            minimum: 1
+            maximum: 9007199254740991
+            default: 1
+        - name: size
+          in: query
+          schema: &a14
             type: integer
             minimum: 1
             maximum: 100
-            default: 50
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-            maximum: 9007199254740991
+            default: 20
       responses:
         "200":
-          description: Página de equipos no eliminados.
+          description: Página de activos no eliminados.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EquipoListaRespuesta"
-        "400":
-          description: Solicitud o código inválido.
+                $ref: "#/components/schemas/PaginaActivos"
+        "400": &a3
+          description: Solicitud, identificador o parámetros inválidos.
           content:
             application/json:
               schema:
@@ -46,8 +60,7 @@ paths:
                       codigo:
                         enum:
                           - DATOS_INVALIDOS
-                          - CODIGO_INVALIDO
-        "401":
+        "401": &a1
           description: Sesión ausente, inválida, expirada o revocada.
           content:
             application/json:
@@ -59,8 +72,8 @@ paths:
                       codigo:
                         enum:
                           - NO_AUTORIZADO
-        "403":
-          description: El rol no tiene permiso.
+        "403": &a2
+          description: El rol no tiene acceso a esta operación.
           content:
             application/json:
               schema:
@@ -71,29 +84,31 @@ paths:
                       codigo:
                         enum:
                           - SIN_PERMISO
+      description: SUPERVISOR, JEFATURA, TECNICO y TRABAJADOR. Excluye deleted_at no nulo. total usa los
+        mismos filtros que items; orden estable por id. (page-1)*size debe ser un entero seguro.
     post:
-      operationId: crearEquipo
-      summary: Crear equipo (SUPERVISOR)
+      operationId: crearActivo
+      summary: Crear activo (SUPERVISOR o JEFATURA)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/EquipoCrearSolicitud"
+              $ref: "#/components/schemas/ActivoCrearSolicitud"
       responses:
         "201":
-          description: Equipo creado.
+          description: Activo creado.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EquipoRespuesta"
+                $ref: "#/components/schemas/ActivoRespuesta"
           headers:
             Location:
               schema:
                 type: string
-              description: Ruta del equipo creado.
+              description: Ruta del activo creado.
         "400":
-          description: Solicitud o código inválido.
+          description: Cuerpo o formato EQ-0000 inválido.
           content:
             application/json:
               schema:
@@ -104,33 +119,11 @@ paths:
                       codigo:
                         enum:
                           - DATOS_INVALIDOS
-                          - CODIGO_INVALIDO
-        "401":
-          description: Sesión ausente, inválida, expirada o revocada.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - NO_AUTORIZADO
-        "403":
-          description: El rol no tiene permiso.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - SIN_PERMISO
+                          - CODIGO_FORMATO_INVALIDO
+        "401": *a1
+        "403": *a2
         "409":
-          description: Código reservado incluso si el equipo fue dado de baja.
+          description: Código ya reservado, incluso si el activo fue dado de baja.
           content:
             application/json:
               schema:
@@ -151,30 +144,20 @@ paths:
           minimum: 1
           maximum: 9007199254740991
     get:
-      operationId: consultarEquipo
-      summary: Consultar equipo activo
+      operationId: consultarActivo
+      summary: Consultar activo no eliminado
       responses:
         "200":
-          description: Equipo encontrado.
+          description: Activo encontrado.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EquipoRespuesta"
-        "400":
-          description: Solicitud o código inválido.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - DATOS_INVALIDOS
-                          - CODIGO_INVALIDO
-        "401":
-          description: Sesión ausente, inválida, expirada o revocada.
+                $ref: "#/components/schemas/ActivoRespuesta"
+        "400": *a3
+        "401": *a1
+        "403": *a2
+        "404": &a4
+          description: Activo inexistente o dado de baja.
           content:
             application/json:
               schema:
@@ -184,165 +167,39 @@ paths:
                     properties:
                       codigo:
                         enum:
-                          - NO_AUTORIZADO
-        "403":
-          description: El rol no tiene permiso.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - SIN_PERMISO
-        "404":
-          description: Equipo inexistente o dado de baja.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - EQUIPO_NO_ENCONTRADO
+                          - ACTIVO_NO_ENCONTRADO
     patch:
-      operationId: modificarEquipo
-      summary: Modificar equipo (SUPERVISOR)
+      operationId: modificarActivo
+      summary: Editar activo (SUPERVISOR o JEFATURA); código inmutable
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/EquipoActualizarSolicitud"
+              $ref: "#/components/schemas/ActivoActualizarSolicitud"
       responses:
         "200":
-          description: Equipo actualizado.
+          description: Activo editado, o sin cambios si solo se envió codigo.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EquipoRespuesta"
-        "400":
-          description: Solicitud o código inválido.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - DATOS_INVALIDOS
-                          - CODIGO_INVALIDO
-        "401":
-          description: Sesión ausente, inválida, expirada o revocada.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - NO_AUTORIZADO
-        "403":
-          description: El rol no tiene permiso.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - SIN_PERMISO
-        "404":
-          description: Equipo inexistente o dado de baja.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - EQUIPO_NO_ENCONTRADO
-        "409":
-          description: Código reservado incluso si el equipo fue dado de baja.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - CODIGO_DUPLICADO
+                $ref: "#/components/schemas/ActivoRespuesta"
+        "400": *a3
+        "401": *a1
+        "403": *a2
+        "404": *a4
     delete:
-      operationId: darDeBajaEquipo
-      summary: Baja lógica (SUPERVISOR)
-      description: Asigna eliminadoEn; conserva fila y auditoría. No realiza DELETE
-        físico de equipos. GET excluye filas dadas de baja.
+      operationId: darDeBajaActivo
+      summary: Baja lógica (SUPERVISOR o JEFATURA)
+      description: Asigna deleted_at con hora del servidor y estado FUERA_DE_SERVICIO. Conserva fila,
+        código único y auditoría. No borra físicamente ni habilita transiciones generales de estado.
       responses:
         "204":
           description: Baja aplicada, sin cuerpo.
-        "400":
-          description: Solicitud o código inválido.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - DATOS_INVALIDOS
-                          - CODIGO_INVALIDO
-        "401":
-          description: Sesión ausente, inválida, expirada o revocada.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - NO_AUTORIZADO
-        "403":
-          description: El rol no tiene permiso.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - SIN_PERMISO
-        "404":
-          description: Equipo inexistente o dado de baja.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ErrorRespuesta"
-                  - type: object
-                    properties:
-                      codigo:
-                        enum:
-                          - EQUIPO_NO_ENCONTRADO
+        "400": *a3
+        "401": *a1
+        "403": *a2
+        "404": *a4
 components:
   securitySchemes:
     bearerAuth:
@@ -363,113 +220,6 @@ components:
         - EN_FALLA
         - EN_MANTENCIÓN
         - FUERA_DE_SERVICIO
-    EquipoCrearSolicitud:
-      type: object
-      additionalProperties: false
-      required:
-        - codigo
-        - nombre
-        - ubicacion
-        - criticidad
-      properties:
-        codigo:
-          type: string
-          pattern: ^EQ-[0-9]{4}$
-        nombre:
-          type: string
-          minLength: 1
-          maxLength: 120
-          pattern: \S
-        ubicacion:
-          type: string
-          minLength: 1
-          maxLength: 120
-          pattern: \S
-        criticidad:
-          $ref: "#/components/schemas/CriticidadEquipo"
-        estado:
-          $ref: "#/components/schemas/EstadoEquipo"
-    EquipoActualizarSolicitud:
-      type: object
-      additionalProperties: false
-      minProperties: 1
-      properties:
-        codigo:
-          type: string
-          pattern: ^EQ-[0-9]{4}$
-        nombre:
-          type: string
-          minLength: 1
-          maxLength: 120
-          pattern: \S
-        ubicacion:
-          type: string
-          minLength: 1
-          maxLength: 120
-          pattern: \S
-        criticidad:
-          $ref: "#/components/schemas/CriticidadEquipo"
-        estado:
-          $ref: "#/components/schemas/EstadoEquipo"
-    EquipoRespuesta:
-      type: object
-      additionalProperties: false
-      required:
-        - id
-        - codigo
-        - nombre
-        - ubicacion
-        - criticidad
-        - estado
-        - creadoEn
-        - actualizadoEn
-        - eliminadoEn
-      properties:
-        id:
-          type: integer
-          minimum: 1
-        codigo:
-          type: string
-          pattern: ^EQ-[0-9]{4}$
-        nombre:
-          type: string
-          minLength: 1
-          maxLength: 120
-          pattern: \S
-        ubicacion:
-          type: string
-          minLength: 1
-          maxLength: 120
-          pattern: \S
-        criticidad:
-          $ref: "#/components/schemas/CriticidadEquipo"
-        estado:
-          $ref: "#/components/schemas/EstadoEquipo"
-        creadoEn:
-          type: string
-          format: date-time
-        actualizadoEn:
-          type: string
-          format: date-time
-        eliminadoEn:
-          type:
-            - string
-            - "null"
-          format: date-time
-    EquipoListaRespuesta:
-      type: object
-      additionalProperties: false
-      required:
-        - items
-        - total
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/EquipoRespuesta"
-        total:
-          type: integer
-          minimum: 0
     ErrorRespuesta:
       type: object
       additionalProperties: false
@@ -483,9 +233,127 @@ components:
             - NO_AUTORIZADO
             - SIN_PERMISO
             - DATOS_INVALIDOS
-            - CODIGO_INVALIDO
+            - CODIGO_FORMATO_INVALIDO
             - CODIGO_DUPLICADO
-            - EQUIPO_NO_ENCONTRADO
+            - ACTIVO_NO_ENCONTRADO
         mensaje:
           type: string
           minLength: 1
+    ActivoCrearSolicitud:
+      type: object
+      additionalProperties: false
+      required:
+        - codigo
+        - nombre
+        - ubicacion
+        - criticidad
+      properties:
+        codigo: &a8
+          type: string
+          pattern: ^EQ-[0-9]{4}$
+        nombre: &a6
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+        marca: &a5
+          type:
+            - string
+            - "null"
+          maxLength: 120
+        modelo: *a5
+        ubicacion: *a6
+        criticidad: &a7
+          $ref: "#/components/schemas/CriticidadEquipo"
+      description: Estado inicial OPERATIVO y uso_acumulado_horas=0, asignados por servidor. Marca y
+        modelo opcionales (null por defecto).
+    ActivoActualizarSolicitud:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nombre: *a6
+        marca: *a5
+        modelo: *a5
+        ubicacion: *a6
+        criticidad: *a7
+        uso_acumulado_horas:
+          type: number
+          minimum: 0
+        codigo:
+          description: Cualquier valor recibido se ignora; el código original es inmutable.
+      description: Solo campos presentes; omitir conserva el valor, null permite vaciar marca/modelo.
+        codigo se ignora incluso si es el único campo (200 sin cambios). estado, fecha_alta y
+        deleted_at no son editables. No gestiona transiciones de estado.
+    ActivoRespuesta:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - codigo
+        - nombre
+        - marca
+        - modelo
+        - ubicacion
+        - criticidad
+        - estado
+        - uso_acumulado_horas
+        - fecha_alta
+        - deleted_at
+      properties:
+        id: &a9
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+        codigo: *a8
+        nombre: *a6
+        marca: *a5
+        modelo: *a5
+        ubicacion: *a6
+        criticidad: *a7
+        estado:
+          $ref: "#/components/schemas/EstadoEquipo"
+        uso_acumulado_horas:
+          type: number
+          minimum: 0
+        fecha_alta:
+          type: string
+          format: date-time
+        deleted_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+    PaginaActivos:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - total
+        - page
+        - size
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivoRespuesta"
+        total:
+          type: integer
+          minimum: 0
+        page: *a9
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+    ConsultaActivos:
+      type: object
+      additionalProperties: false
+      required:
+        - page
+        - size
+      properties:
+        q: *a10
+        criticidad: *a11
+        estado: *a12
+        page: *a13
+        size: *a14

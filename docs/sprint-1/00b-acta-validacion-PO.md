@@ -8,8 +8,9 @@ Contratos auth/activos, matrices GWT, tres wireframes, trazabilidad, resultados 
 
 | Decisión | Resultado del PO |
 | --- | --- |
-| SUPERVISOR escribe equipos; otros roles consultan | Pendiente |
-| Formato EQ-0000 y códigos no reutilizables tras baja | Pendiente |
+| SUPERVISOR/JEFATURA escriben; TECNICO/TRABAJADOR leen; BODEGA sin acceso a activos | Especificación del usuario incorporada; aceptación formal pendiente |
+| EQ-0000 inmutable en PATCH; baja con deleted_at y FUERA_DE_SERVICIO; código no reutilizable | Especificación del usuario incorporada; aceptación formal pendiente |
+| Campos de activos, filtros q/criticidad/estado y page/size; sin transiciones HU-04/HU-05 | Especificación del usuario incorporada; aceptación formal pendiente |
 | Bloqueo al quinto fallo, 15 minutos, por IP | Pendiente |
 | JWT por 60 minutos, logout revocable | Pendiente |
 | Wireframes suficientes; frontend funcional fuera de Sprint 1 | Pendiente |

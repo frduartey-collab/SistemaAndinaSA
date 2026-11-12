@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crearAplicacion } from '../dist/app.js';
+import { DatabaseSync } from 'node:sqlite';
 import { Datos } from '../dist/datos.js';
 import { hashPassword, verificarPassword, rutValido } from '../dist/seguridad.js';
 import { esquema } from '../dist/validacion.js';
@@ -151,7 +152,7 @@ test('GWT-HU02-01 RF-02: crear, listar y consultar equipo con ubicación y criti
     const created = await f.request('POST', '/activos', nuevo, token);
     assert.equal(created.status, 201);
     const body = await created.json();
-    assert(esquema('activos', 'EquipoRespuesta')(body));
+    assert(esquema('activos', 'ActivoRespuesta')(body));
     assert.equal(body.ubicacion, 'Planta A');
     assert.equal(body.criticidad, 'ALTA');
     assert.equal(body.estado, 'OPERATIVO');
@@ -160,20 +161,30 @@ test('GWT-HU02-01 RF-02: crear, listar y consultar equipo con ubicación y criti
     assert.equal(get.status, 200);
     assert.deepEqual(await get.json(), body);
     const list = await (await f.request('GET', '/activos', undefined, token)).json();
-    assert(esquema('activos', 'EquipoListaRespuesta')(list));
+    assert(esquema('activos', 'PaginaActivos')(list));
     assert.equal(list.total, 1);
 });
-test('GWT-HU02-02 RF-02: modificar ubicación, criticidad y estado persiste', async (t) => {
+test('GWT-HU02-02 RF-02: modificar ubicación, criticidad y uso conserva el estado', async (t) => {
     const f = await fixture(t);
     const token = await f.login();
     const item = await (await f.request('POST', '/activos', nuevo, token)).json();
-    const response = await f.request('PATCH', '/activos/' + item.id, { ubicacion: 'Planta B', criticidad: 'BAJA', estado: 'EN_MANTENCIÓN' }, token);
+    const response = await f.request('PATCH', '/activos/' + item.id, { ubicacion: 'Planta B', criticidad: 'BAJA', uso_acumulado_horas: 12.5, marca: 'Andina', modelo: 'P-10' }, token);
     assert.equal(response.status, 200);
     const body = await response.json();
-    assert(esquema('activos', 'EquipoRespuesta')(body));
+    assert(esquema('activos', 'ActivoRespuesta')(body));
     assert.equal(body.ubicacion, 'Planta B');
     assert.equal(body.criticidad, 'BAJA');
-    assert.equal(body.estado, 'EN_MANTENCIÓN');
+    assert.equal(body.estado, 'OPERATIVO');
+    assert.equal(body.uso_acumulado_horas, 12.5);
+    assert.equal(body.marca, 'Andina');
+    const invalid = await f.request('PATCH', '/activos/' + item.id, { estado: 'EN_FALLA' }, token);
+    assert.equal(invalid.status, 400);
+    const overflow = await fetch(f.url + '/activos/' + item.id, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: '{"uso_acumulado_horas":1e309}',
+    });
+    assert.equal(overflow.status, 400);
+    assert.equal(f.datos.obtener(item.id).uso_acumulado_horas, 12.5);
 });
 test('GWT-HU02-03 RF-02: baja lógica conserva fila y oculta equipo de consultas', async (t) => {
     const f = await fixture(t);
@@ -183,14 +194,14 @@ test('GWT-HU02-03 RF-02: baja lógica conserva fila y oculta equipo de consultas
     assert.equal(response.status, 204);
     assert.equal(await response.text(), '');
     assert.equal((await f.request('GET', '/activos/' + item.id, undefined, token)).status, 404);
-    const row = f.datos.db.prepare('SELECT * FROM equipos WHERE id=?').get(item.id);
+    const row = f.datos.db.prepare('SELECT * FROM activos WHERE id=?').get(item.id);
     assert(row);
-    assert.equal(typeof row.eliminado_en, 'string');
+    assert.equal(typeof row.deleted_at, 'string');
     assert.equal((await (await f.request('GET', '/activos', undefined, token)).json()).total, 0);
     assert.equal((await f.request('DELETE', '/activos/' + item.id, undefined, token)).status, 404);
     assert.equal((await f.request('PATCH', '/activos/' + item.id, { nombre: 'Otro' }, token)).status, 404);
 });
-test('GWT-HU02-04 RF-02: código duplicado al crear o modificar devuelve 409', async (t) => {
+test('GWT-HU02-04 RF-02: duplicado al crear devuelve 409; PATCH ignora el código', async (t) => {
     const f = await fixture(t);
     const token = await f.login();
     await f.request('POST', '/activos', nuevo, token);
@@ -198,9 +209,12 @@ test('GWT-HU02-04 RF-02: código duplicado al crear o modificar devuelve 409', a
     assert.equal(response.status, 409);
     assert.equal((await response.json()).codigo, 'CODIGO_DUPLICADO');
     const other = await (await f.request('POST', '/activos', { ...nuevo, codigo: 'EQ-0002' }, token)).json();
-    response = await f.request('PATCH', '/activos/' + other.id, { codigo: 'EQ-0001' }, token);
-    assert.equal(response.status, 409);
-    assert.equal((await response.json()).codigo, 'CODIGO_DUPLICADO');
+    response = await f.request('PATCH', '/activos/' + other.id, { codigo: 'formato-ignorado', nombre: 'Otra prensa' }, token);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).codigo, 'EQ-0002');
+    response = await f.request('PATCH', '/activos/' + other.id, { codigo: null }, token);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).nombre, 'Otra prensa');
 });
 test('GWT-HU02-05 RF-02: código no se reutiliza después de baja', async (t) => {
     const f = await fixture(t);
@@ -215,7 +229,7 @@ test('GWT-HU02-06 RF-02: EQ exige cuatro dígitos exactos', async (t) => {
     for (const codigo of ['EQ-', 'EQ-ABC', 'EQ-123', 'EQ-12345', 'eq-0001', 'EQ-ABCD']) {
         const response = await f.request('POST', '/activos', { ...nuevo, codigo }, token);
         assert.equal(response.status, 400);
-        assert.equal((await response.json()).codigo, 'CODIGO_INVALIDO');
+        assert.equal((await response.json()).codigo, 'CODIGO_FORMATO_INVALIDO');
     }
 });
 test('GWT-HU02-07 RF-02: campos obligatorios, criticidad y propiedades extra se validan', async (t) => {
@@ -228,19 +242,23 @@ test('GWT-HU02-07 RF-02: campos obligatorios, criticidad y propiedades extra se 
     }
 });
 for (const rol of ['TECNICO', 'TRABAJADOR', 'BODEGA', 'JEFATURA']) {
-    test(`GWT-HU02-08 RF-01/RF-02/RNF-05: ${rol} consulta y no escribe`, async (t) => {
+    test(`GWT-HU02-08 RF-01/RF-02/RNF-05: permisos de ${rol}`, async (t) => {
         const f = await fixture(t);
         const admin = await f.login();
         const item = await (await f.request('POST', '/activos', nuevo, admin)).json();
         const token = await f.login(rol);
-        assert.equal((await f.request('GET', '/activos', undefined, token)).status, 200);
-        assert.equal((await f.request('GET', '/activos/' + item.id, undefined, token)).status, 200);
-        for (const [method, path, body] of [['POST', '/activos', nuevo], ['PATCH', '/activos/' + item.id, { nombre: 'Otra' }], ['DELETE', '/activos/' + item.id, undefined]]) {
+        const lectura = rol === 'BODEGA' ? 403 : 200;
+        assert.equal((await f.request('GET', '/activos', undefined, token)).status, lectura);
+        assert.equal((await f.request('GET', '/activos/' + item.id, undefined, token)).status, lectura);
+        for (const [method, path, body] of [['POST', '/activos', { ...nuevo, codigo: 'EQ-0002' }], ['PATCH', '/activos/' + item.id, { nombre: 'Otra' }], ['DELETE', '/activos/' + item.id, undefined]]) {
             const response = await f.request(method, path, body, token);
-            assert.equal(response.status, 403);
-            assert.equal((await response.json()).codigo, 'SIN_PERMISO');
+            if (rol === 'JEFATURA') assert.equal(response.status, { POST: 201, PATCH: 200, DELETE: 204 }[method]);
+            else {
+                assert.equal(response.status, 403);
+                assert.equal((await response.json()).codigo, 'SIN_PERMISO');
+            }
         }
-        assert.equal(f.datos.obtener(item.id).nombre, 'Prensa');
+        if (rol !== 'JEFATURA') assert.equal(f.datos.obtener(item.id).nombre, 'Prensa');
     });
 }
 test('GWT-HU02-09 RF-01/RF-02: las cinco rutas de activos exigen autenticación', async (t) => {
@@ -254,7 +272,7 @@ test('GWT-HU02-09 RF-01/RF-02: las cinco rutas de activos exigen autenticación'
 test('GWT-HU02-10 RF-02: id, paginación y actualización vacía inválidos', async (t) => {
     const f = await fixture(t);
     const token = await f.login();
-    for (const path of ['/activos/0', '/activos/no-numero', '/activos?limit=0', '/activos?limit=101', '/activos?offset=-1', '/activos?offset=NaN', '/activos?extra=si'])
+    for (const path of ['/activos/0', '/activos/no-numero', '/activos?page=0', '/activos?size=101', '/activos?page=-1', '/activos?size=NaN', '/activos?page=9007199254740991&size=100', '/activos?estado=ROTO', '/activos?extra=si'])
         assert.equal((await f.request('GET', path, undefined, token)).status, 400, path);
     assert.equal((await f.request('PATCH', '/activos/1', {}, token)).status, 400);
     assert.equal((await f.request('GET', '/activos/999', undefined, token)).status, 404);
@@ -264,8 +282,10 @@ test('GWT-HU02-11 RF-02: paginación estable con total independiente de página'
     const token = await f.login();
     for (let i = 1; i <= 3; i++)
         await f.request('POST', '/activos', { ...nuevo, codigo: 'EQ-000' + i }, token);
-    const body = await (await f.request('GET', '/activos?limit=1&offset=1', undefined, token)).json();
+    const body = await (await f.request('GET', '/activos?page=2&size=1', undefined, token)).json();
     assert.equal(body.total, 3);
+    assert.equal(body.page, 2);
+    assert.equal(body.size, 1);
     assert.equal(body.items.length, 1);
     assert.equal(body.items[0].codigo, 'EQ-0002');
 });
@@ -277,7 +297,7 @@ test('GWT-HU02-12 RF-02/RNF-06: operaciones registran actor y no guardan secreto
     await f.request('DELETE', '/activos/' + item.id, undefined, token);
     await f.request('POST', '/auth/logout', undefined, token);
     const rows = f.datos.db.prepare('SELECT * FROM auditoria ORDER BY id').all();
-    assert.deepEqual(rows.map(r => r.accion), ['LOGIN_CORRECTO', 'EQUIPO_CREADO', 'EQUIPO_MODIFICADO', 'EQUIPO_BAJA_LOGICA', 'LOGOUT']);
+    assert.deepEqual(rows.map(r => r.accion), ['LOGIN_CORRECTO', 'ACTIVO_CREADO', 'ACTIVO_MODIFICADO', 'ACTIVO_BAJA_LOGICA', 'LOGOUT']);
     assert(rows.every(r => r.actor_id === 1));
     assert(!JSON.stringify(rows).includes(token));
     assert(!JSON.stringify(rows).includes(PASSWORD));
@@ -285,24 +305,35 @@ test('GWT-HU02-12 RF-02/RNF-06: operaciones registran actor y no guardan secreto
 test('GWT-HU02-13 RF-02: texto con caracteres SQL se almacena como dato', async (t) => {
     const f = await fixture(t);
     const token = await f.login();
-    const nombre = "Prensa'); DROP TABLE equipos; --";
+    const nombre = "Prensa'); DROP TABLE activos; --";
     const response = await f.request('POST', '/activos', { ...nuevo, nombre }, token);
     assert.equal(response.status, 201);
     assert.equal((await response.json()).nombre, nombre);
-    assert.equal(f.datos.listar(50, 0).total, 1);
+    assert.equal(f.datos.listar({ page: 1, size: 20 }).total, 1);
 });
-test('GWT-HU02-14 RF-02: base en disco conserva equipos y baja tras reabrir', async (t) => {
+test('GWT-HU02-14 RF-02: migra legado una vez, conserva IDs y persiste las bajas', async (t) => {
     const directory = mkdtempSync(join(tmpdir(), 'andina-persistencia-'));
     t.after(() => rmSync(directory, { recursive: true, force: true }));
     const path = join(directory, 'datos.sqlite');
+    const legacy = new DatabaseSync(path);
+    legacy.exec(`CREATE TABLE equipos (id INTEGER PRIMARY KEY,codigo TEXT UNIQUE,nombre TEXT,ubicacion TEXT,
+      criticidad TEXT,estado TEXT,creado_en TEXT,actualizado_en TEXT,eliminado_en TEXT);
+      INSERT INTO equipos VALUES(7,'EQ-0007','Prensa','A','ALTA','OPERATIVO','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z',NULL);
+      INSERT INTO equipos VALUES(8,'EQ-0008','Motor','B','BAJA','OPERATIVO','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z','2026-02-01T00:00:00Z');`);
+    legacy.close();
     let datos = new Datos(path);
+    assert.equal(datos.obtener(7).codigo, 'EQ-0007');
+    assert.equal(datos.obtener(7).uso_acumulado_horas, 0);
+    assert.equal(datos.db.prepare('SELECT estado FROM activos WHERE id=8').get().estado, 'FUERA_DE_SERVICIO');
     const actor = datos.crearUsuario({ rut: ruts.SUPERVISOR, nombre: 'Supervisor', rol: 'SUPERVISOR', activo: true, passwordHash: await baseHash });
-    const item = datos.crear({ ...nuevo, codigo: 'EQ-0001', criticidad: 'ALTA' }, actor.id, Date.now());
-    datos.eliminar(item.id, actor.id, Date.now());
+    datos.eliminar(7, actor.id, Date.now());
     datos.close();
     datos = new Datos(path);
-    assert.equal(datos.listar(50, 0).total, 0);
-    assert.equal(datos.db.prepare('SELECT count(*) AS n FROM equipos').get()?.n, 1);
+    assert.equal(datos.listar({ page: 1, size: 20 }).total, 0);
+    assert.equal(datos.db.prepare('SELECT count(*) AS n FROM activos').get().n, 2);
+    assert.equal(datos.db.prepare('SELECT count(*) AS n FROM equipos').get().n, 2);
+    assert.equal(datos.db.prepare('SELECT count(*) AS n FROM migraciones').get().n, 1);
+    assert.throws(() => datos.crear({ ...nuevo, codigo: 'EQ-0008' }, actor.id, Date.now()), /reservado/);
     datos.close();
 });
 test('GWT-HU02-15 RF-02: JSON malformado se rechaza sin excepción expuesta', async (t) => {

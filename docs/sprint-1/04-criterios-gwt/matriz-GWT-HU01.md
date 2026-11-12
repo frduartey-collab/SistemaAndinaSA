@@ -1,6 +1,6 @@
 # Matriz GWT HU01
 
-Fuente de TODOS los criterios: RF-01, informe §3.1 p.4, [PDF fuente](../../referencias/Informe_del_sistema.pdf). RNF-05/06/07 en §3.2 p.4 sustentan permisos, auditoría y hash. D-01..D-05 concretan políticas por ratificar con PO.
+Fuente de TODOS los criterios: RF-01, informe §3.1 p.4, [PDF fuente](../../referencias/Informe_del_sistema.pdf). RNF-05/06/07 en §3.2 p.4 sustentan permisos, auditoría y hash. Las reglas vigentes y las políticas pendientes de ratificación constan en 01-alcance-y-decisiones.md.
 
 | Criterio | RF / fuente | Given (Dado) | When (Cuando) | Then (Entonces) | Prueba |
 | --- | --- | --- | --- | --- | --- |
@@ -17,4 +17,4 @@ Fuente de TODOS los criterios: RF-01, informe §3.1 p.4, [PDF fuente](../../refe
 | GWT-HU01-11 | RF-01 §3.1 p.4 | Dos sesiones del mismo usuario | Cierra solo la primera | La segunda sigue válida | backend/tests/sprint1.test.mjs: GWT-HU01-11 |
 | GWT-HU01-12 | RF-01 §3.1 p.4 | Configuración sin secreto suficiente | Inicializa API | Rechaza el arranque antes de exponer rutas | backend/tests/sprint1.test.mjs: GWT-HU01-12 |
 
-Evidencia automatizada: cada ID aparece en el título de una prueba; HU02-08 se parametriza para los cuatro roles de consulta. Pendiente aceptación y firma del PO; ejecutar tests no firma una historia.
+Evidencia automatizada: cada ID aparece en el título de una prueba; HU02-08 verifica la matriz de roles vigente. Pendiente aceptación y firma del PO; ejecutar tests no firma una historia.

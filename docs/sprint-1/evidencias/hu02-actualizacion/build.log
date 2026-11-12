@@ -1,0 +1,4 @@
+
+> sistema-andina-sa@0.1.0 build
+> tsc --project backend/tsconfig.json
+

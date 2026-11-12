@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync } from 'node:fs';
-import type { UsuarioSesion, EquipoRespuesta, EquipoCrearSolicitud, EquipoActualizarSolicitud } from './dominio.js';
+import type { UsuarioSesion, ActivoRespuesta, ActivoCrearSolicitud, ActivoActualizarSolicitud, ConsultaActivos, PaginaActivos } from './dominio.js';
 import { ErrorAPI } from './errores.js';
 
 export interface UsuarioRegistro extends UsuarioSesion { passwordHash: string }
@@ -10,11 +10,12 @@ function usuario(row: Row): UsuarioRegistro {
   return { id: Number(row.id), rut: String(row.rut), nombre: String(row.nombre),
     rol: row.rol as UsuarioSesion['rol'], activo: Boolean(row.activo), passwordHash: String(row.password_hash) };
 }
-function equipo(row: Row): EquipoRespuesta {
-  return { id: Number(row.id), codigo: row.codigo as EquipoRespuesta['codigo'], nombre: String(row.nombre),
-    ubicacion: String(row.ubicacion), criticidad: row.criticidad as EquipoRespuesta['criticidad'],
-    estado: row.estado as EquipoRespuesta['estado'], creadoEn: String(row.creado_en),
-    actualizadoEn: String(row.actualizado_en), eliminadoEn: row.eliminado_en === null ? null : String(row.eliminado_en) };
+function activo(row: Row): ActivoRespuesta {
+  return { id: Number(row.id), codigo: row.codigo as ActivoRespuesta['codigo'], nombre: String(row.nombre),
+    marca: row.marca === null ? null : String(row.marca), modelo: row.modelo === null ? null : String(row.modelo),
+    ubicacion: String(row.ubicacion), criticidad: row.criticidad as ActivoRespuesta['criticidad'],
+    estado: row.estado as ActivoRespuesta['estado'], uso_acumulado_horas: Number(row.uso_acumulado_horas),
+    fecha_alta: String(row.fecha_alta), deleted_at: row.deleted_at === null ? null : String(row.deleted_at) };
 }
 
 export class Datos {
@@ -37,20 +38,12 @@ export class Datos {
       CREATE TABLE IF NOT EXISTS intentos_login (
         origen TEXT PRIMARY KEY, cantidad INTEGER NOT NULL, vence INTEGER NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS equipos (
-        id INTEGER PRIMARY KEY, codigo TEXT UNIQUE NOT NULL,
-        nombre TEXT NOT NULL CHECK(length(trim(nombre)) BETWEEN 1 AND 120),
-        ubicacion TEXT NOT NULL CHECK(length(trim(ubicacion)) BETWEEN 1 AND 120),
-        criticidad TEXT NOT NULL CHECK(criticidad IN ('ALTA','MEDIA','BAJA')),
-        estado TEXT NOT NULL CHECK(estado IN ('OPERATIVO','EN_FALLA','EN_MANTENCIÓN','FUERA_DE_SERVICIO')),
-        creado_en TEXT NOT NULL, actualizado_en TEXT NOT NULL, eliminado_en TEXT,
-        CHECK(length(codigo)=7 AND codigo GLOB 'EQ-[0-9][0-9][0-9][0-9]')
-      );
       CREATE TABLE IF NOT EXISTS auditoria (
         id INTEGER PRIMARY KEY, actor_id INTEGER REFERENCES usuarios(id), accion TEXT NOT NULL,
         entidad_id INTEGER, fecha TEXT NOT NULL
       );
     `);
+    this.migrarActivos();
   }
   close(): void { this.db.close(); }
   transaccion<T>(run: () => T): T {
@@ -95,48 +88,100 @@ export class Datos {
     return this.intentos(origen, now);
   }
   limpiarIntentos(origen: string): void { this.db.prepare('DELETE FROM intentos_login WHERE origen=?').run(origen); }
-  listar(limit: number, offset: number): { items: EquipoRespuesta[]; total: number } {
-    const rows = this.db.prepare('SELECT * FROM equipos WHERE eliminado_en IS NULL ORDER BY id LIMIT ? OFFSET ?').all(limit, offset);
-    const count = this.db.prepare('SELECT count(*) AS total FROM equipos WHERE eliminado_en IS NULL').get()!;
-    return { items: rows.map(equipo), total: Number(count.total) };
+  /** Migración transaccional de la versión anterior, sin borrar datos legados. */
+  private migrarActivos(): void {
+    this.transaccion(() => {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS migraciones (
+          version INTEGER PRIMARY KEY, aplicada_en TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS activos (
+          id INTEGER PRIMARY KEY, codigo TEXT UNIQUE NOT NULL,
+          nombre TEXT NOT NULL CHECK(length(trim(nombre)) BETWEEN 1 AND 120),
+          marca TEXT CHECK(marca IS NULL OR length(marca)<=120),
+          modelo TEXT CHECK(modelo IS NULL OR length(modelo)<=120),
+          ubicacion TEXT NOT NULL CHECK(length(trim(ubicacion)) BETWEEN 1 AND 120),
+          criticidad TEXT NOT NULL CHECK(criticidad IN ('ALTA','MEDIA','BAJA')),
+          estado TEXT NOT NULL CHECK(estado IN ('OPERATIVO','EN_FALLA','EN_MANTENCIÓN','FUERA_DE_SERVICIO')),
+          uso_acumulado_horas REAL NOT NULL DEFAULT 0 CHECK(uso_acumulado_horas>=0),
+          fecha_alta TEXT NOT NULL, deleted_at TEXT,
+          CHECK(length(codigo)=7 AND codigo GLOB 'EQ-[0-9][0-9][0-9][0-9]')
+        );
+      `);
+      if (this.db.prepare('SELECT version FROM migraciones WHERE version=1').get()) return;
+      const legado = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='equipos'").get();
+      if (legado) {
+        // Conserva IDs para que auditoria.entidad_id siga identificando el mismo activo.
+        this.db.exec(`INSERT INTO activos(id,codigo,nombre,marca,modelo,ubicacion,criticidad,estado,
+            uso_acumulado_horas,fecha_alta,deleted_at)
+          SELECT id,codigo,nombre,NULL,NULL,ubicacion,criticidad,
+            CASE WHEN eliminado_en IS NOT NULL THEN 'FUERA_DE_SERVICIO' ELSE estado END,
+            0,creado_en,eliminado_en FROM equipos`);
+      }
+      this.db.prepare('INSERT INTO migraciones(version,aplicada_en) VALUES(1,?)').run(new Date().toISOString());
+    });
   }
-  obtener(id: number): EquipoRespuesta {
-    const row = this.db.prepare('SELECT * FROM equipos WHERE id=? AND eliminado_en IS NULL').get(id);
-    if (!row) throw new ErrorAPI(404, 'EQUIPO_NO_ENCONTRADO', 'El equipo no existe o fue dado de baja.');
-    return equipo(row);
+  listar(query: ConsultaActivos): PaginaActivos {
+    const where = ['deleted_at IS NULL'];
+    const params: Array<string | number> = [];
+    const q = query.q?.trim();
+    if (q) {
+      // instr busca una subcadena literal: % y _ no se convierten en comodines SQL.
+      where.push('(instr(lower(codigo),lower(?))>0 OR instr(lower(nombre),lower(?))>0)');
+      params.push(q, q);
+    }
+    if (query.criticidad) { where.push('criticidad=?'); params.push(query.criticidad); }
+    if (query.estado) { where.push('estado=?'); params.push(query.estado); }
+    const filter = where.join(' AND ');
+    const rows = this.db.prepare('SELECT * FROM activos WHERE ' + filter + ' ORDER BY id LIMIT ? OFFSET ?')
+      .all(...params, query.size, (query.page - 1) * query.size);
+    const count = this.db.prepare('SELECT count(*) AS total FROM activos WHERE ' + filter).get(...params)!;
+    return { items: rows.map(activo), total: Number(count.total), page: query.page, size: query.size };
   }
-  private codigoLibre(codigo: string, except?: number): void {
-    const row = this.db.prepare('SELECT id FROM equipos WHERE codigo=?').get(codigo);
-    if (row && Number(row.id) !== except) throw new ErrorAPI(409, 'CODIGO_DUPLICADO', 'El código ya está reservado.');
+  obtener(id: number): ActivoRespuesta {
+    const row = this.db.prepare('SELECT * FROM activos WHERE id=? AND deleted_at IS NULL').get(id);
+    if (!row) throw new ErrorAPI(404, 'ACTIVO_NO_ENCONTRADO', 'El activo no existe o fue dado de baja.');
+    return activo(row);
   }
-  crear(input: EquipoCrearSolicitud, actor: number, now: number): EquipoRespuesta {
+  private codigoLibre(codigo: string): void {
+    if (this.db.prepare('SELECT id FROM activos WHERE codigo=?').get(codigo)) {
+      throw new ErrorAPI(409, 'CODIGO_DUPLICADO', 'El código ya está reservado.');
+    }
+  }
+  crear(input: ActivoCrearSolicitud, actor: number, now: number): ActivoRespuesta {
     return this.transaccion(() => {
       this.codigoLibre(input.codigo);
-      const date = new Date(now).toISOString();
-      const result = this.db.prepare(`INSERT INTO equipos(codigo,nombre,ubicacion,criticidad,estado,creado_en,actualizado_en)
-        VALUES(?,?,?,?,?,?,?)`).run(input.codigo, input.nombre.trim(), input.ubicacion.trim(), input.criticidad, input.estado ?? 'OPERATIVO', date, date);
+      const result = this.db.prepare(`INSERT INTO activos(codigo,nombre,marca,modelo,ubicacion,criticidad,
+          estado,uso_acumulado_horas,fecha_alta) VALUES(?,?,?,?,?,?,'OPERATIVO',0,?)`)
+        .run(input.codigo, input.nombre.trim(), input.marca?.trim() ?? null, input.modelo?.trim() ?? null,
+          input.ubicacion.trim(), input.criticidad, new Date(now).toISOString());
       const id = Number(result.lastInsertRowid);
-      this.auditar(actor, 'EQUIPO_CREADO', id, now);
+      this.auditar(actor, 'ACTIVO_CREADO', id, now);
       return this.obtener(id);
     });
   }
-  modificar(id: number, input: EquipoActualizarSolicitud, actor: number, now: number): EquipoRespuesta {
+  modificar(id: number, input: ActivoActualizarSolicitud, actor: number, now: number): ActivoRespuesta {
     return this.transaccion(() => {
       const current = this.obtener(id);
-      const merged = { ...current, ...input };
-      this.codigoLibre(merged.codigo, id);
-      this.db.prepare('UPDATE equipos SET codigo=?,nombre=?,ubicacion=?,criticidad=?,estado=?,actualizado_en=? WHERE id=?')
-        .run(merged.codigo, merged.nombre.trim(), merged.ubicacion.trim(), merged.criticidad, merged.estado, new Date(now).toISOString(), id);
-      this.auditar(actor, 'EQUIPO_MODIFICADO', id, now);
+      // Lista explícita: codigo, estado y fechas no se toman del cuerpo HTTP.
+      const nombre = input.nombre ?? current.nombre;
+      const marca = input.marca === undefined ? current.marca : input.marca;
+      const modelo = input.modelo === undefined ? current.modelo : input.modelo;
+      const ubicacion = input.ubicacion ?? current.ubicacion;
+      const criticidad = input.criticidad ?? current.criticidad;
+      const uso = input.uso_acumulado_horas ?? current.uso_acumulado_horas;
+      this.db.prepare(`UPDATE activos SET nombre=?,marca=?,modelo=?,ubicacion=?,criticidad=?,uso_acumulado_horas=?
+        WHERE id=?`).run(nombre.trim(), marca?.trim() ?? null, modelo?.trim() ?? null, ubicacion.trim(), criticidad, uso, id);
+      this.auditar(actor, 'ACTIVO_MODIFICADO', id, now);
       return this.obtener(id);
     });
   }
   eliminar(id: number, actor: number, now: number): void {
     this.transaccion(() => {
       this.obtener(id);
-      const date = new Date(now).toISOString();
-      this.db.prepare('UPDATE equipos SET eliminado_en=?,actualizado_en=? WHERE id=?').run(date, date, id);
-      this.auditar(actor, 'EQUIPO_BAJA_LOGICA', id, now);
+      this.db.prepare("UPDATE activos SET deleted_at=?,estado='FUERA_DE_SERVICIO' WHERE id=?")
+        .run(new Date(now).toISOString(), id);
+      this.auditar(actor, 'ACTIVO_BAJA_LOGICA', id, now);
     });
   }
 }
