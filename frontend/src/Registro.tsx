@@ -4,7 +4,7 @@ import type { RegistroSolicitud, Rol, UsuarioSesion } from '../../backend/src/do
 import { useAuth } from './AuthContext'
 import { etiquetasRol } from './activos'
 import { ErrorApi, llamarApi, mensajeError } from './api'
-import { normalizarRut } from './rut'
+import { normalizarRut, rutValido } from './rut'
 
 const ROLES_PUBLICOS = ['TECNICO', 'TRABAJADOR'] as const
 
@@ -36,6 +36,10 @@ export function Registro() {
     const rutNormalizado = normalizarRut(rut)
     if (!/^[1-9][0-9]{6,7}-[0-9K]$/.test(rutNormalizado)) {
       setError('Ingresa un RUT con dígito verificador y sin ceros al comienzo.')
+      return
+    }
+    if (!rutValido(rutNormalizado)) {
+      setError('El dígito verificador del RUT no coincide. Revisa el número.')
       return
     }
     if (!nombre.trim()) {

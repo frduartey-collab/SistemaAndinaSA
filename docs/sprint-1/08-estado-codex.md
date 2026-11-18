@@ -41,7 +41,7 @@ Se conservaron las 40 pruebas previas, adaptadas a bcrypt, better-sqlite3 y al n
 
 ## Pendientes de cierre formal
 
-Peer review humano, aceptación del PO y firmas siguen pendientes; las actas son borradores SIN FIRMA. No se declaran 8 SP aceptados ni RNF productivos acreditados. HU-04 y HU-05 permanecen como backlog de Sprint 2.
+Peer review humano, aceptación del PO y firmas siguen pendientes; las actas son borradores SIN FIRMA. No se declaran 8 SP aceptados ni RNF productivos acreditados. HU-05 permanece como backlog de Sprint 2.
 
 ## Frontend · etapa de interfaz completada
 
@@ -57,6 +57,16 @@ POST /auth/register guarda una cuenta activa con RUT único y hash bcrypt. El al
 
 POST /fallas guarda el equipo vigente, autor de la sesión, descripción, prioridad, estado Reportada y fecha. Si no se envía prioridad, toma la criticidad actual del equipo. GET /fallas devuelve resultados paginados. Supervisor/Jefatura ven todos los reportes, Técnico/Trabajador ven los propios y Bodega recibe 403. La pantalla Fallas incluye buscador, sugerencia editable y reintento de guardado con los datos conservados.
 
-Las fotografías son una selección simulada de hasta tres imágenes. La carga real y el aviso automático al supervisor siguen pendientes. HU-04 y HU-05 quedan para otra entrega.
+Las fotografías son una selección simulada de hasta tres imágenes. La carga real y el aviso automático al supervisor siguen pendientes. HU-05 queda para otra entrega.
 
 Validación de esta entrega: 11 operaciones en tres contratos OpenAPI, 48 pruebas HTTP/de integración aprobadas y compilación de backend y frontend. La verificación de navegador usó SQLite en memoria y datos sintéticos.
+
+## RUT compartido y órdenes de trabajo (HU-04)
+
+El formulario de Registro y el backend reutilizan el Módulo 11 de backend/src/rut.ts. Al registrar, el navegador comprueba el dígito verificador antes del envío y el servidor vuelve a validarlo.
+
+SQLite crea ordenes_trabajo con falla_id único y referencias a fallas y usuarios. Supervisor y Jefatura crean órdenes desde fallas sin asignación de equipos vigentes y eligen un técnico activo. La fecha límite se interpreta como fecha civil de Chile. GET /ordenes devuelve todas las órdenes para esos administradores y solo asignaciones propias para Técnico. Trabajador y Bodega reciben 403. GET /ordenes/tecnicos ofrece opciones paginadas para administradores sin exponer el RUT.
+
+PATCH /ordenes/{id}/estado permite avanzar PENDIENTE → EN_PROGRESO → CERRADA al técnico asignado o a un administrador. La creación y los cambios se registran en auditoría. El cierre de estado funciona en HU-04 y el registro de intervenciones y repuestos sigue pendiente en HU-05.
+
+Verificación local: 15 operaciones validadas en cuatro contratos OpenAPI, 52 pruebas aprobadas y compilaciones del backend y frontend correctas. Chromium verificó el RUT inválido antes del envío, la asignación desde Fallas, la conservación de campos si falla la red, las órdenes propias del técnico, el cierre con confirmación y la vista móvil de 390 px.

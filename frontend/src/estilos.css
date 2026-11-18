@@ -395,3 +395,76 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 @media (max-width: 52rem) {
   .modulo-fallas { grid-template-columns: minmax(0, 1fr); }
 }
+
+.cabecera-listado-fallas, .orden-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.cabecera-listado-fallas { align-items: baseline; }
+.cabecera-listado-fallas [aria-pressed="true"] { background: var(--menta); border-color: var(--verde); }
+.crear-desde-falla { margin-top: 0.6rem; text-decoration: none; }
+.lista-ordenes { padding: clamp(0.9rem, 3vw, 1.5rem); }
+
+.ordenes-resultados, .opciones-orden { margin: 0; padding: 0; list-style: none; }
+.ordenes-resultados { margin-top: 0.75rem; }
+
+.orden {
+  padding-block: 1rem;
+  border-top: 1px solid var(--borde);
+  overflow-wrap: anywhere;
+}
+
+.orden-cabecera h2 { margin-top: 0.28rem; font-size: 1.15rem; }
+.orden-pendiente { color: #664a08; background: #f9edc6; }
+.orden-en_progreso { color: #174c69; background: #e0eff8; }
+.orden-cerrada { color: #21563a; background: #e2f3e6; }
+
+.orden-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1.5rem;
+  margin: 0.8rem 0;
+}
+
+.orden-datos dt { color: var(--suave); font-size: 0.85rem; font-weight: 650; }
+.orden-datos dd { margin: 0; }
+.lista-ordenes .paginacion, .selector-orden .paginacion { padding-inline: 0; }
+
+.campos-orden { display: grid; gap: 1rem; }
+
+.selector-orden {
+  padding: 0.65rem;
+  border: 1px solid var(--borde);
+  border-radius: 0.55rem;
+}
+
+.selector-orden > legend { padding-inline: 0.25rem; font-weight: 700; }
+.opciones-orden { display: grid; gap: 0.35rem; margin-top: 0.45rem; }
+.opcion-orden {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  background: #f3f7f4;
+  cursor: pointer;
+}
+
+.opcion-orden:has(:checked) { background: var(--menta); }
+.opcion-orden span { overflow-wrap: anywhere; }
+.opcion-orden-detalle { display: block; }
+.busqueda-tecnico {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 30rem) {
+  .busqueda-tecnico { grid-template-columns: minmax(0, 1fr); }
+}

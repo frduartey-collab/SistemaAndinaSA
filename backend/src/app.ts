@@ -3,10 +3,12 @@ import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { Datos } from './datos.js';
 import { Fallas } from './fallas.js';
+import { OrdenesTrabajo } from './ordenes.js';
 import { ErrorAPI } from './errores.js';
-import { hashPassword, verificarPassword, hashToken, rutValido } from './seguridad.js';
-import { solicitud, idPositivo, consultaActivos, consultaFallas } from './validacion.js';
-import type { LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta, ActivoCrearSolicitud, ActivoActualizarSolicitud, FallaCrearSolicitud } from './dominio.js';
+import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
+import { rutValido } from './rut.js';
+import { solicitud, idPositivo, consultaActivos, consultaFallas, consultaOrdenes, consultaTecnicos } from './validacion.js';
+import type { LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta, ActivoCrearSolicitud, ActivoActualizarSolicitud, FallaCrearSolicitud, OrdenCrearSolicitud, OrdenEstadoSolicitud, Rol } from './dominio.js';
 
 interface Options {
   secret: string;
@@ -30,6 +32,7 @@ export async function crearAplicacion(options: Options) {
   if (!Number.isInteger(ttl) || ttl < 1 || !Number.isInteger(max) || max < 1 || windowMs < 1) throw new Error('Políticas de sesión inválidas.');
   const datos = options.datos ?? new Datos();
   const fallas = new Fallas(datos);
+  const ordenes = new OrdenesTrabajo(datos);
   const dummy = await hashPassword(randomUUID());
   const app = express();
   app.disable('x-powered-by');
@@ -201,8 +204,45 @@ export async function crearAplicacion(options: Options) {
   });
   app.get('/fallas', autenticado, accesoFallas, (req, res) => {
     const { id, rol } = (res.locals as Context).usuario;
-    const admin = rol === 'SUPERVISOR' || rol === 'JEFATURA';
-    res.json(fallas.listar(consultaFallas(req.query), admin ? undefined : id));
+    const admin = administrar(rol);
+    const consulta = consultaFallas(req.query);
+    if (consulta.sin_orden && !admin) throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo un administrador puede consultar fallas para asignar.');
+    res.json(fallas.listar(consulta, admin ? undefined : id));
+  });
+
+  function administrar(rol: Rol): boolean {
+    return rol === 'SUPERVISOR' || rol === 'JEFATURA';
+  }
+
+  function exigirAdministracionOrdenes(_req: Request, res: Response, next: NextFunction): void {
+    const { rol } = (res.locals as Context).usuario;
+    if (!administrar(rol)) throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo Supervisor o Jefatura puede asignar órdenes.');
+    next();
+  }
+
+  function accesoOrdenes(_req: Request, res: Response, next: NextFunction): void {
+    const { rol } = (res.locals as Context).usuario;
+    if (!administrar(rol) && rol !== 'TECNICO') throw new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene acceso a Órdenes.');
+    next();
+  }
+
+  app.get('/ordenes/tecnicos', autenticado, exigirAdministracionOrdenes, (req, res) => {
+    res.json(ordenes.listarTecnicos(consultaTecnicos(req.query)));
+  });
+  app.post('/ordenes', autenticado, exigirAdministracionOrdenes, (req, res) => {
+    const input = solicitud<OrdenCrearSolicitud>('ordenes', 'OrdenCrearSolicitud', req.body);
+    const { id } = (res.locals as Context).usuario;
+    res.status(201).json(ordenes.crear(input, id, now()));
+  });
+  app.get('/ordenes', autenticado, accesoOrdenes, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    res.json(ordenes.listar(consultaOrdenes(req.query), administrar(rol) ? undefined : id));
+  });
+  app.patch('/ordenes/:id/estado', autenticado, accesoOrdenes, (req, res) => {
+    const ordenId = idPositivo(req.params.id);
+    const input = solicitud<OrdenEstadoSolicitud>('ordenes', 'OrdenEstadoSolicitud', req.body);
+    const { id, rol } = (res.locals as Context).usuario;
+    res.json(ordenes.cambiarEstado(ordenId, input.estado, id, administrar(rol), now()));
   });
 
   app.use((_req, res) => { res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'La ruta no existe.' }); });

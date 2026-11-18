@@ -54,6 +54,12 @@ paths:
           name: size
           schema:
             $ref: "#/components/schemas/Tamano"
+        - in: query
+          name: sin_orden
+          description: Con true, filtra fallas sin orden y con equipo vigente. Solo Supervisor o Jefatura.
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: Resultados en orden del más reciente al más antiguo.
@@ -127,6 +133,8 @@ components:
           $ref: "#/components/schemas/Pagina"
         size:
           $ref: "#/components/schemas/Tamano"
+        sin_orden:
+          type: boolean
     FallaCrearSolicitud:
       type: object
       additionalProperties: false

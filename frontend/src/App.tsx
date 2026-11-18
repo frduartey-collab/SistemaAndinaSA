@@ -5,6 +5,7 @@ import { CatalogoEquipos } from './CatalogoEquipos'
 import { Login } from './Login'
 import { Registro } from './Registro'
 import { ReportarFalla } from './ReportarFalla'
+import { OrdenesTrabajo } from './OrdenesTrabajo'
 import type { BorradorEquipo } from './FormularioEquipo'
 import { etiquetasRol } from './activos'
 import { mensajeError } from './api'
@@ -41,6 +42,9 @@ function LayoutProtegido({ alSalir }: { alSalir: () => void }) {
             <nav aria-label="Secciones de Andina">
               <NavLink className="enlace-nav" to="/equipos">Equipos</NavLink>
               <NavLink className="enlace-nav" to="/fallas">Fallas</NavLink>
+              {(puedeEscribir || estado.usuario.rol === 'TECNICO') && (
+                <NavLink className="enlace-nav" to="/ordenes">Órdenes</NavLink>
+              )}
               {puedeEscribir && <NavLink className="enlace-nav" to="/registro">Crear cuenta</NavLink>}
             </nav>
           )}
@@ -65,7 +69,7 @@ function LayoutProtegido({ alSalir }: { alSalir: () => void }) {
 }
 
 export default function App() {
-  const { estado, puedeLeer, reintentar } = useAuth()
+  const { estado, puedeLeer, puedeEscribir, reintentar } = useAuth()
   const [borrador, setBorrador] = useState<{ usuarioId: number; datos: BorradorEquipo } | null>(null)
 
   if (estado.tipo === 'comprobando') {
@@ -83,6 +87,7 @@ export default function App() {
   }
 
   const usuarioId = estado.tipo === 'activa' ? estado.usuario.id : null
+  const puedeVerOrdenes = estado.tipo === 'activa' && (puedeEscribir || estado.usuario.rol === 'TECNICO')
   const borradorDeLaCuenta = borrador?.usuarioId === usuarioId ? borrador.datos : undefined
 
   return (
@@ -101,6 +106,9 @@ export default function App() {
           ) : <Navigate to="/sin-acceso" replace />}
         />
         <Route path="/fallas" element={puedeLeer ? <ReportarFalla /> : <Navigate to="/sin-acceso" replace />} />
+        <Route path="/ordenes" element={puedeVerOrdenes
+          ? <OrdenesTrabajo />
+          : <Navigate to={puedeLeer ? '/equipos' : '/sin-acceso'} replace />} />
         <Route
           path="/sin-acceso"
           element={puedeLeer ? <Navigate to="/equipos" replace /> : (

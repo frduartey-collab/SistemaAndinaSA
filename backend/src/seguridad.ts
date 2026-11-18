@@ -1,18 +1,7 @@
 import bcrypt from 'bcrypt';
 import { scrypt, timingSafeEqual, createHash } from 'node:crypto';
 
-export function rutValido(value: string): boolean {
-  if (!/^[0-9]{7,8}-[0-9Kk]$/.test(value)) return false;
-  const [digits, verifier] = value.toUpperCase().split('-');
-  if (Number(digits) === 0) return false;
-  let sum = 0, weight = 2;
-  for (let i = digits.length - 1; i >= 0; i--) {
-    sum += Number(digits[i]) * weight;
-    weight = weight === 7 ? 2 : weight + 1;
-  }
-  const result = 11 - (sum % 11);
-  return verifier === (result === 11 ? '0' : result === 10 ? 'K' : String(result));
-}
+export { rutValido } from './rut.js';
 
 function derive(password: string, salt: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {

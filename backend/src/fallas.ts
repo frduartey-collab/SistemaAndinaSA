@@ -43,8 +43,14 @@ export class Fallas {
   }
 
   listar(consulta: ConsultaFallas, usuarioId?: number): PaginaFallas {
-    const where = usuarioId === undefined ? '' : ' WHERE f.usuario_id = ?';
+    const condiciones: string[] = [];
     const parametros = usuarioId === undefined ? [] : [usuarioId];
+    if (usuarioId !== undefined) condiciones.push('f.usuario_id = ?');
+    if (consulta.sin_orden) {
+      condiciones.push("f.estado = 'REPORTADA'", 'a.deleted_at IS NULL',
+        'NOT EXISTS (SELECT 1 FROM ordenes_trabajo o WHERE o.falla_id = f.id)');
+    }
+    const where = condiciones.length ? ' WHERE ' + condiciones.join(' AND ') : '';
     const offset = (consulta.page - 1) * consulta.size;
 
     const leerPagina = this.datos.db.transaction(() => {
@@ -52,7 +58,7 @@ export class Fallas {
         SELECCION_FALLAS + where + ' ORDER BY f.fecha_reporte DESC, f.id DESC LIMIT ? OFFSET ?',
       ).all(...parametros, consulta.size, offset);
       const conteo = this.datos.db.prepare<number[], { total: number }>(
-        'SELECT count(*) AS total FROM fallas f' + where,
+        'SELECT count(*) AS total FROM fallas f JOIN activos a ON a.id = f.equipo_id' + where,
       ).get(...parametros)!;
       return { items, total: conteo.total, page: consulta.page, size: consulta.size };
     });

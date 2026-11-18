@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import type { PaginaFallas } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
 import { mostrarFecha } from './activos'
@@ -14,6 +15,7 @@ type Vista =
 export function ListaFallas() {
   const { puedeEscribir, solicitar } = useAuth()
   const [page, setPage] = useState(1)
+  const [soloPendientes, setSoloPendientes] = useState(false)
   const [reintentos, setReintentos] = useState(0)
   const [vista, setVista] = useState<Vista>({ tipo: 'cargando' })
   const { datos } = vista
@@ -21,7 +23,8 @@ export function ListaFallas() {
   useEffect(() => {
     const controlador = new AbortController()
     const { signal } = controlador
-    solicitar<PaginaFallas>(`/fallas?page=${page}&size=${TAMANO}`, { signal })
+    const filtro = soloPendientes ? '&sin_orden=true' : ''
+    solicitar<PaginaFallas>(`/fallas?page=${page}&size=${TAMANO}${filtro}`, { signal })
       .then((respuesta) => {
         if (!signal.aborted) setVista({ tipo: 'lista', datos: respuesta })
       })
@@ -32,7 +35,7 @@ export function ListaFallas() {
       })
 
     return () => controlador.abort()
-  }, [page, reintentos, solicitar])
+  }, [page, reintentos, solicitar, soloPendientes])
 
   function cambiarPagina(nueva: number) {
     setVista({ tipo: 'cargando', datos })
@@ -43,7 +46,17 @@ export function ListaFallas() {
 
   return (
     <section className="panel reportes" aria-labelledby="titulo-lista-fallas">
-      <h2 id="titulo-lista-fallas">{puedeEscribir ? 'Reportes de fallas' : 'Mis reportes'}</h2>
+      <div className="cabecera-listado-fallas">
+        <h2 id="titulo-lista-fallas">{puedeEscribir ? 'Reportes de fallas' : 'Mis reportes'}</h2>
+        {puedeEscribir && (
+          <button className="boton boton-secundario" type="button" aria-pressed={soloPendientes}
+            disabled={vista.tipo === 'cargando'} onClick={() => {
+              setVista({ tipo: 'cargando' })
+              setPage(1)
+              setSoloPendientes((anterior) => !anterior)
+            }}>Fallas sin orden</button>
+        )}
+      </div>
       {vista.tipo === 'cargando' && <p className="ayuda" role="status">Cargando reportes…</p>}
       {vista.tipo === 'error' && (
         <div className="aviso aviso-error">
@@ -57,7 +70,9 @@ export function ListaFallas() {
       {datos && (
         <>
           <p className="ayuda" role="status">{datos.total === 1 ? '1 reporte' : datos.total + ' reportes'}</p>
-          {datos.items.length === 0 && <p className="ayuda">Aún no hay reportes.</p>}
+          {datos.items.length === 0 && (
+            <p className="ayuda">{soloPendientes ? 'No hay fallas pendientes de asignar.' : 'Aún no hay reportes.'}</p>
+          )}
           <ul className="lista-reportes">
             {datos.items.map((falla) => (
               <li key={falla.id} className="reporte">
@@ -69,6 +84,11 @@ export function ListaFallas() {
                 <p className="ayuda">
                   {mostrarFecha(falla.fecha_reporte)} · Reportada{puedeEscribir ? ' por ' + falla.usuario_nombre : ''}
                 </p>
+                {puedeEscribir && soloPendientes && vista.tipo === 'lista' && (
+                  <Link className="boton boton-secundario crear-desde-falla" to="/ordenes" state={{ falla }}>
+                    Crear orden
+                  </Link>
+                )}
               </li>
             ))}
           </ul>
