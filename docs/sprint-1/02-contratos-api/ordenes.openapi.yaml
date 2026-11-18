@@ -1,0 +1,221 @@
+openapi: 3.1.0
+info:
+  title: Manufacturas Andina — Órdenes de trabajo
+  version: 0.1.0
+  description: |
+    HU-04. Supervisor y Jefatura crean y consultan todas las órdenes. Técnico
+    consulta y actualiza sus asignaciones. Supervisor y Jefatura también
+    pueden actualizar estados. Trabajador y Bodega no acceden al módulo.
+security:
+  - bearerAuth: []
+paths:
+  /ordenes:
+    post:
+      operationId: crearOrden
+      summary: Crear una orden desde una falla pendiente
+      description: |
+        Requiere Supervisor o Jefatura. Cada falla de un equipo vigente admite
+        una orden. El técnico asignado debe estar activo. La fecha límite es
+        una fecha civil de Chile igual o posterior al día actual.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OrdenCrearSolicitud" }
+      responses:
+        "201":
+          description: Orden creada en estado PENDIENTE.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrdenRespuesta" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: FALLA_NO_ENCONTRADA o ACTIVO_NO_ENCONTRADO.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+        "409":
+          description: ORDEN_DUPLICADA o TECNICO_NO_DISPONIBLE.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    get:
+      operationId: listarOrdenes
+      summary: Listar órdenes recientes según el rol
+      parameters:
+        - { name: page, in: query, schema: { $ref: "#/components/schemas/Pagina" } }
+        - { name: size, in: query, schema: { $ref: "#/components/schemas/Tamano" } }
+      responses:
+        "200":
+          description: Página de órdenes visibles.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginaOrdenes" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+  /ordenes/tecnicos:
+    get:
+      operationId: listarTecnicosParaOrden
+      summary: Buscar técnicos activos para una asignación
+      description: Requiere Supervisor o Jefatura. Expone solo ID y nombre.
+      parameters:
+        - { name: q, in: query, schema: { $ref: "#/components/schemas/Busqueda" } }
+        - { name: page, in: query, schema: { $ref: "#/components/schemas/Pagina" } }
+        - { name: size, in: query, schema: { $ref: "#/components/schemas/Tamano" } }
+      responses:
+        "200":
+          description: Página de técnicos activos.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginaTecnicos" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+  /ordenes/{id}/estado:
+    patch:
+      operationId: cambiarEstadoOrden
+      summary: Avanzar el estado de una orden
+      description: |
+        Permite PENDIENTE → EN_PROGRESO → CERRADA. Solicitar el estado actual
+        devuelve la orden sin registrar otro cambio. Solo puede actualizar el
+        técnico asignado, un Supervisor o Jefatura.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OrdenEstadoSolicitud" }
+      responses:
+        "200":
+          description: Orden con el estado actualizado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrdenRespuesta" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: ORDEN_NO_ENCONTRADA. La orden no existe o no está asignada al técnico.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+        "409":
+          description: TRANSICION_ORDEN_INVALIDA. El estado solicitado no es el siguiente.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    DatosInvalidos:
+      description: DATOS_INVALIDOS. Entrada o fecha límite inválida.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    NoAutorizado:
+      description: NO_AUTORIZADO. Se requiere una sesión válida.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string, const: Bearer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    SinPermiso:
+      description: SIN_PERMISO. El rol no puede realizar esta operación.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Id: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    Pagina: { type: integer, minimum: 1, maximum: 9007199254740991, default: 1 }
+    Tamano: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Busqueda: { type: string, maxLength: 120 }
+    EstadoOrden:
+      type: string
+      enum: [PENDIENTE, EN_PROGRESO, CERRADA]
+    ConsultaOrdenes:
+      type: object
+      additionalProperties: false
+      required: [page, size]
+      properties:
+        page: { $ref: "#/components/schemas/Pagina" }
+        size: { $ref: "#/components/schemas/Tamano" }
+    ConsultaTecnicos:
+      type: object
+      additionalProperties: false
+      required: [page, size]
+      properties:
+        page: { $ref: "#/components/schemas/Pagina" }
+        size: { $ref: "#/components/schemas/Tamano" }
+        q: { $ref: "#/components/schemas/Busqueda" }
+    OrdenCrearSolicitud:
+      type: object
+      additionalProperties: false
+      required: [falla_id, tecnico_id, fecha_limite]
+      properties:
+        falla_id: { $ref: "#/components/schemas/Id" }
+        tecnico_id: { $ref: "#/components/schemas/Id" }
+        fecha_limite: { type: string, format: date }
+    OrdenEstadoSolicitud:
+      type: object
+      additionalProperties: false
+      required: [estado]
+      properties:
+        estado: { $ref: "#/components/schemas/EstadoOrden" }
+    OrdenRespuesta:
+      type: object
+      additionalProperties: false
+      required: [id, falla_id, tecnico_id, tecnico_nombre, equipo_codigo, equipo_nombre, descripcion, prioridad, fecha_limite, estado]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        falla_id: { $ref: "#/components/schemas/Id" }
+        tecnico_id: { $ref: "#/components/schemas/Id" }
+        tecnico_nombre: { type: string }
+        equipo_codigo: { type: string, pattern: '^EQ-[0-9]{4}$' }
+        equipo_nombre: { type: string }
+        descripcion: { type: string }
+        prioridad: { type: string, enum: [ALTA, MEDIA, BAJA] }
+        fecha_limite: { type: string, format: date }
+        estado: { $ref: "#/components/schemas/EstadoOrden" }
+    TecnicoResumen:
+      type: object
+      additionalProperties: false
+      required: [id, nombre]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        nombre: { type: string }
+    PaginaOrdenes:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/OrdenRespuesta" } }
+        total: { type: integer, minimum: 0 }
+        page: { $ref: "#/components/schemas/Pagina" }
+        size: { $ref: "#/components/schemas/Tamano" }
+    PaginaTecnicos:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/TecnicoResumen" } }
+        total: { type: integer, minimum: 0 }
+        page: { $ref: "#/components/schemas/Pagina" }
+        size: { $ref: "#/components/schemas/Tamano" }
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          enum: [DATOS_INVALIDOS, NO_AUTORIZADO, SIN_PERMISO, FALLA_NO_ENCONTRADA, ACTIVO_NO_ENCONTRADO, ORDEN_DUPLICADA, TECNICO_NO_DISPONIBLE, ORDEN_NO_ENCONTRADA, TRANSICION_ORDEN_INVALIDA]
+        mensaje: { type: string, minLength: 1 }

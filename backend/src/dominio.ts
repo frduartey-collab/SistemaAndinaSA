@@ -14,7 +14,9 @@ export interface RegistroSolicitud extends LoginSolicitud { nombre: string; rol:
 export interface LoginRespuesta { token: string; usuario: UsuarioSesion; expiraEn: number }
 export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_INACTIVO'
   | 'DEMASIADOS_INTENTOS' | 'DATOS_INVALIDOS' | 'NO_AUTORIZADO' | 'SIN_PERMISO'
-  | 'CODIGO_FORMATO_INVALIDO' | 'CODIGO_DUPLICADO' | 'ACTIVO_NO_ENCONTRADO' | 'RUT_DUPLICADO';
+  | 'CODIGO_FORMATO_INVALIDO' | 'CODIGO_DUPLICADO' | 'ACTIVO_NO_ENCONTRADO' | 'RUT_DUPLICADO'
+  | 'FALLA_NO_ENCONTRADA' | 'ORDEN_DUPLICADA' | 'TECNICO_NO_DISPONIBLE'
+  | 'ORDEN_NO_ENCONTRADA' | 'TRANSICION_ORDEN_INVALIDA';
 export interface ErrorRespuesta { codigo: CodigoError; mensaje: string }
 
 export interface ActivoCrearSolicitud {
@@ -78,5 +80,31 @@ export interface FallaRespuesta {
   fecha_reporte: string;
 }
 
-export interface ConsultaFallas { page: number; size: number }
-export interface PaginaFallas extends ConsultaFallas { items: FallaRespuesta[]; total: number }
+export interface ConsultaFallas { page: number; size: number; sin_orden?: boolean }
+export interface PaginaFallas { items: FallaRespuesta[]; total: number; page: number; size: number }
+
+export type EstadoOrden = 'PENDIENTE' | 'EN_PROGRESO' | 'CERRADA';
+
+export interface OrdenCrearSolicitud {
+  falla_id: number;
+  tecnico_id: number;
+  fecha_limite: string;
+}
+
+export interface OrdenEstadoSolicitud { estado: EstadoOrden }
+
+export interface OrdenRespuesta extends OrdenCrearSolicitud {
+  id: number;
+  tecnico_nombre: string;
+  equipo_codigo: CodigoEquipo;
+  equipo_nombre: string;
+  descripcion: string;
+  prioridad: CriticidadEquipo;
+  estado: EstadoOrden;
+}
+
+export interface ConsultaOrdenes { page: number; size: number }
+export interface ConsultaTecnicos extends ConsultaOrdenes { q?: string }
+export interface TecnicoResumen { id: number; nombre: string }
+export interface PaginaOrdenes extends ConsultaOrdenes { items: OrdenRespuesta[]; total: number }
+export interface PaginaTecnicos extends ConsultaOrdenes { items: TecnicoResumen[]; total: number }

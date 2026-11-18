@@ -3,10 +3,10 @@ import { createRequire } from 'node:module';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv';
 import { parseDocument } from 'yaml';
-import type { ConsultaActivos, ConsultaFallas } from './dominio.js';
+import type { ConsultaActivos, ConsultaFallas, ConsultaOrdenes, ConsultaTecnicos } from './dominio.js';
 import { ErrorAPI } from './errores.js';
 
-type Contrato = 'auth' | 'activos' | 'fallas';
+type Contrato = 'auth' | 'activos' | 'fallas' | 'ordenes';
 interface Documento { components: { schemas: Record<string, object> } }
 const ajv = new Ajv2020({ strict: false, strictNumbers: true, allErrors: true });
 const addFormats = createRequire(import.meta.url)('ajv-formats') as (instance: Ajv2020) => void;
@@ -76,5 +76,15 @@ export function consultaActivos(query: Record<string, unknown>): ConsultaActivos
 }
 
 export function consultaFallas(query: Record<string, unknown>): ConsultaFallas {
-  return validarConsulta<ConsultaFallas>('fallas', 'ConsultaFallas', query);
+  const filtro = query.sin_orden;
+  const sin_orden = filtro === 'true' ? true : filtro === 'false' ? false : filtro;
+  return validarConsulta<ConsultaFallas>('fallas', 'ConsultaFallas', { ...query, sin_orden });
+}
+
+export function consultaOrdenes(query: Record<string, unknown>): ConsultaOrdenes {
+  return validarConsulta<ConsultaOrdenes>('ordenes', 'ConsultaOrdenes', query);
+}
+
+export function consultaTecnicos(query: Record<string, unknown>): ConsultaTecnicos {
+  return validarConsulta<ConsultaTecnicos>('ordenes', 'ConsultaTecnicos', query);
 }

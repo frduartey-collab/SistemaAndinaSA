@@ -44,6 +44,14 @@ En **Fallas**, busca un equipo por código o nombre, describe el problema y guar
 
 La selección de hasta tres fotos es una simulación de interfaz. El API guarda el reporte con el autor de la sesión, la prioridad, la fecha y el estado Reportada. Reinicia el proceso de la API después de actualizar para que SQLite cree la tabla fallas.
 
+## Órdenes de trabajo
+
+En **Órdenes**, Supervisor y Jefatura pueden elegir una falla pendiente, asignar un técnico activo y fijar una fecha límite. También pueden abrir **Fallas → Fallas sin orden → Crear orden** para partir con la falla seleccionada. Cada falla de un equipo vigente se puede asignar una vez.
+
+El técnico ve sus propias órdenes. La secuencia es **Pendiente → En progreso → Cerrada**. Pueden avanzar el estado el técnico asignado, Supervisor o Jefatura. La fecha límite se valida como fecha civil de Chile. El cierre de esta etapa cambia el estado. Los datos de intervención y repuestos corresponden a HU-05.
+
+El formulario de registro y la API comparten el algoritmo Módulo 11 del RUT. El registro muestra el error del dígito verificador antes de enviar la solicitud.
+
 ## Verificación
 
 - `npm run validate:contracts`: estructura OpenAPI, referencias y schemas.
@@ -69,6 +77,10 @@ Envía el token del login en Authorization como Bearer seguido de un espacio y e
 | DELETE | /activos/{id} | SUPERVISOR y JEFATURA, baja lógica |
 | POST | /fallas | SUPERVISOR, JEFATURA, TECNICO y TRABAJADOR |
 | GET | /fallas | Todos para SUPERVISOR/JEFATURA; propios para TECNICO/TRABAJADOR |
+| POST | /ordenes | SUPERVISOR y JEFATURA |
+| GET | /ordenes | Todas para SUPERVISOR/JEFATURA; asignadas para TECNICO |
+| GET | /ordenes/tecnicos | SUPERVISOR y JEFATURA |
+| PATCH | /ordenes/{id}/estado | SUPERVISOR, JEFATURA o el técnico asignado |
 
 BODEGA recibe 403 SIN_PERMISO en las cinco operaciones de activos. Una petición sin sesión válida recibe 401 NO_AUTORIZADO.
 
