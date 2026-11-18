@@ -70,3 +70,11 @@ SQLite crea ordenes_trabajo con falla_id único y referencias a fallas y usuario
 PATCH /ordenes/{id}/estado permite avanzar PENDIENTE → EN_PROGRESO → CERRADA al técnico asignado o a un administrador. La creación y los cambios se registran en auditoría. El cierre de estado funciona en HU-04 y el registro de intervenciones y repuestos sigue pendiente en HU-05.
 
 Verificación local: 15 operaciones validadas en cuatro contratos OpenAPI, 52 pruebas aprobadas y compilaciones del backend y frontend correctas. Chromium verificó el RUT inválido antes del envío, la asignación desde Fallas, la conservación de campos si falla la red, las órdenes propias del técnico, el cierre con confirmación y la vista móvil de 390 px.
+
+## Identidad visual de SIGEM
+
+La interfaz de Manufacturas Andina incorpora el nombre SIGEM, una llave pixelada y una paleta azul marino y cian inspiradas en la referencia visual. La navegación distingue Equipos, Fallas, Órdenes y Crear cuenta por su ícono y su etiqueta. Las acciones de búsqueda, edición, baja, asignación, fotografías y sesión usan el mismo conjunto de pictogramas. Los diálogos devuelven el foco al control de origen al cerrarse.
+
+El engranaje de Ajustes permite cambiar el tamaño del texto y la densidad del catálogo. El navegador guarda ambas preferencias de la interfaz localmente. El favicon, el manifiesto y los PNG para accesos directos están en el frontend. El ícono de inventario está disponible como recurso gráfico para una próxima etapa.
+
+Validación en Chromium con SQLite en memoria. Se verificaron el login y el registro, los íconos y los tamaños del manifiesto, los ajustes al recargar, el manejo del diálogo con teclado y el catálogo a 390 px. Se recorrieron los flujos de asignación y cambio de estado de órdenes con Supervisor y Técnico, y el acceso restringido de Trabajador.

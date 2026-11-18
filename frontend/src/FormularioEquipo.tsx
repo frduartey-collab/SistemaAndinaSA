@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useState, type FormEvent } from 'react'
 import type { ActivoActualizarSolicitud, ActivoCrearSolicitud, ActivoRespuesta, CriticidadEquipo } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
@@ -203,6 +204,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
         <div className="dialogo-acciones">
           <button className="boton boton-secundario" type="button" disabled={guardando} onClick={alCerrar}>Cancelar</button>
           <button className="boton boton-primario" type="submit" disabled={guardando || !puedeEscribir}>
+            <Icono nombre="guardar" />
             {guardando ? 'Guardando…' : 'Guardar equipo'}
           </button>
         </div>

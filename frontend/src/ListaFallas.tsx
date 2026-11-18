@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import type { PaginaFallas } from '../../backend/src/dominio'
@@ -54,7 +55,7 @@ export function ListaFallas() {
               setVista({ tipo: 'cargando' })
               setPage(1)
               setSoloPendientes((anterior) => !anterior)
-            }}>Fallas sin orden</button>
+            }}><Icono nombre="filtros" />Fallas sin orden</button>
         )}
       </div>
       {vista.tipo === 'cargando' && <p className="ayuda" role="status">Cargando reportes…</p>}
@@ -64,7 +65,7 @@ export function ListaFallas() {
           <button className="boton boton-secundario" type="button" onClick={() => {
             setVista({ tipo: 'cargando', datos })
             setReintentos((anterior) => anterior + 1)
-          }}>Reintentar reportes</button>
+          }}><Icono nombre="sincronizar" />Reintentar reportes</button>
         </div>
       )}
       {datos && (
@@ -86,6 +87,7 @@ export function ListaFallas() {
                 </p>
                 {puedeEscribir && soloPendientes && vista.tipo === 'lista' && (
                   <Link className="boton boton-secundario crear-desde-falla" to="/ordenes" state={{ falla }}>
+                    <Icono nombre="ordenNueva" />
                     Crear orden
                   </Link>
                 )}
@@ -97,9 +99,9 @@ export function ListaFallas() {
               <p>Página {datos.page} de {paginas}</p>
               <div>
                 <button className="boton boton-secundario" type="button" disabled={vista.tipo !== 'lista' || page <= 1}
-                  onClick={() => cambiarPagina(page - 1)}>Anterior</button>
+                  onClick={() => cambiarPagina(page - 1)}><Icono nombre="anterior" />Anterior</button>
                 <button className="boton boton-secundario" type="button" disabled={vista.tipo !== 'lista' || page >= paginas}
-                  onClick={() => cambiarPagina(page + 1)}>Siguiente</button>
+                  onClick={() => cambiarPagina(page + 1)}><Icono nombre="siguiente" />Siguiente</button>
               </div>
             </nav>
           )}

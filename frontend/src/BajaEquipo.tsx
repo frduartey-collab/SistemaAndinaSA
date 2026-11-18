@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useState } from 'react'
 import type { ActivoRespuesta } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
@@ -41,7 +42,8 @@ export function BajaEquipo({ equipo, alCerrar, alDarDeBaja }: PropsBaja) {
         <div className="dialogo-acciones">
           <button className="boton boton-secundario" type="button" onClick={alCerrar} disabled={procesando}>Cancelar</button>
           <button className="boton boton-peligro" type="button" onClick={confirmar} disabled={procesando || !puedeEscribir}>
-            {procesando ? 'Dando de baja…' : 'Confirmar baja'}
+            <Icono nombre="baja" />
+            {procesando ? 'Dando de baja…' : 'Dar de baja'}
           </button>
         </div>
       </div>

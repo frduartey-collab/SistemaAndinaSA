@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import type { EstadoOrden, FallaRespuesta, OrdenEstadoSolicitud, OrdenRespuesta, PaginaOrdenes } from '../../backend/src/dominio'
@@ -11,6 +12,7 @@ type Vista =
   | { tipo: 'error'; mensaje: string; datos?: PaginaOrdenes }
   | { tipo: 'lista'; datos: PaginaOrdenes }
 
+const ICONOS_ESTADO = { PENDIENTE: 'pendiente', EN_PROGRESO: 'progreso', CERRADA: 'completar' } as const
 const ESTADOS: Record<EstadoOrden, string> = {
   PENDIENTE: 'Pendiente', EN_PROGRESO: 'En progreso', CERRADA: 'Cerrada',
 }
@@ -97,6 +99,7 @@ export function OrdenesTrabajo() {
         <h1>{puedeEscribir ? 'Órdenes de trabajo' : 'Mis órdenes de trabajo'}</h1>
         {puedeEscribir && (
           <button className="boton boton-primario" type="button" onClick={() => { setAviso(''); setCreando(true) }}>
+            <Icono nombre="ordenNueva" />
             Crear orden
           </button>
         )}
@@ -112,7 +115,7 @@ export function OrdenesTrabajo() {
             <button type="button" className="boton boton-secundario" onClick={() => {
               setVista({ tipo: 'cargando', datos })
               setRevision((anterior) => anterior + 1)
-            }}>Reintentar</button>
+            }}><Icono nombre="sincronizar" />Reintentar</button>
           </div>
         )}
         {datos && (
@@ -129,7 +132,7 @@ export function OrdenesTrabajo() {
                       <p className="ayuda">Orden #{orden.id} · Falla #{orden.falla_id}</p>
                       <h2>{orden.equipo_codigo} · {orden.equipo_nombre}</h2>
                     </div>
-                    <span className={'insignia orden-' + orden.estado.toLowerCase()}>{ESTADOS[orden.estado]}</span>
+                    <span className={'insignia orden-' + orden.estado.toLowerCase()}><Icono nombre={ICONOS_ESTADO[orden.estado]} />{ESTADOS[orden.estado]}</span>
                   </div>
                   <p className="descripcion-falla">{orden.descripcion}</p>
                   <dl className="orden-datos">
@@ -143,13 +146,14 @@ export function OrdenesTrabajo() {
                     <button className="boton boton-primario" type="button" aria-label={'Iniciar orden #' + orden.id}
                       disabled={vista.tipo === 'cargando' || cambiando !== null}
                       onClick={() => cambiarEstado(orden, 'EN_PROGRESO')}>
+                      <Icono nombre="iniciar" />
                       {cambiando === orden.id ? 'Actualizando…' : 'Iniciar trabajo'}
                     </button>
                   )}
                   {orden.estado === 'EN_PROGRESO' && (
                     <button className="boton boton-secundario" type="button" aria-label={'Cerrar orden #' + orden.id}
                       disabled={vista.tipo === 'cargando' || cambiando !== null}
-                      onClick={() => { setErrorCambio(''); setConfirmacion(orden) }}>Cerrar orden</button>
+                      onClick={() => { setErrorCambio(''); setConfirmacion(orden) }}><Icono nombre="completar" />Cerrar orden</button>
                   )}
                 </li>
               ))}
@@ -160,10 +164,10 @@ export function OrdenesTrabajo() {
                 <div>
                   <button type="button" className="boton boton-secundario"
                     disabled={vista.tipo !== 'lista' || cambiando !== null || page <= 1}
-                    onClick={() => cargarPagina(page - 1)}>Anterior</button>
+                    onClick={() => cargarPagina(page - 1)}><Icono nombre="anterior" />Anterior</button>
                   <button type="button" className="boton boton-secundario"
                     disabled={vista.tipo !== 'lista' || cambiando !== null || page >= paginas}
-                    onClick={() => cargarPagina(page + 1)}>Siguiente</button>
+                    onClick={() => cargarPagina(page + 1)}><Icono nombre="siguiente" />Siguiente</button>
                 </div>
               </nav>
             )}
@@ -182,6 +186,7 @@ export function OrdenesTrabajo() {
               onClick={() => { setConfirmacion(null); setErrorCambio('') }}>Cancelar</button>
             <button type="button" className="boton boton-primario" disabled={cambiando !== null}
               onClick={() => cambiarEstado(confirmacion, 'CERRADA')}>
+              <Icono nombre="completar" />
               {cambiando !== null ? 'Cerrando…' : 'Confirmar cierre'}
             </button>
           </div>

@@ -1,3 +1,5 @@
+import { Icono } from './Icono'
+import { MarcaSigem } from './MarcaSigem'
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router'
 import { useAuth } from './AuthContext'
@@ -62,8 +64,8 @@ export function Login() {
   return (
     <main className="pantalla-login">
       <div className="presentacion">
-        <p className="identidad"><span className="marca" aria-hidden="true">A</span> Manufacturas Andina</p>
-        <p className="titulo-presentacion">Gestión de mantenimiento</p>
+        <MarcaSigem />
+        <p className="titulo-presentacion">Sistema Gestor de Mantenimiento</p>
       </div>
       <section className="panel-login" aria-labelledby="titulo-login">
         <h1 id="titulo-login">Iniciar sesión</h1>
@@ -107,16 +109,18 @@ export function Login() {
               />
               <button type="button" className="boton boton-secundario" aria-controls="password"
                 onClick={() => setVisible((anterior) => !anterior)}>
+                <Icono nombre={visible ? 'ocultar' : 'ver'} />
                 {visible ? 'Ocultar' : 'Mostrar'}
               </button>
             </div>
             {errorPassword && <p id="password-error" className="error-campo" role="alert">{errorPassword}</p>}
           </div>
           <button className="boton boton-primario" type="submit" disabled={enviando}>
+            <Icono nombre="entrar" />
             {enviando ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
-        <p className="enlace-cuenta"><Link to="/registro">¿No tienes cuenta? Regístrate</Link></p>
+        <p className="enlace-cuenta"><Link className="enlace-con-icono" to="/registro"><Icono nombre="cuenta" />¿No tienes cuenta? Regístrate</Link></p>
         <p className="solo-lectores" role="status">{enviando ? 'Ingresando…' : ''}</p>
       </section>
     </main>

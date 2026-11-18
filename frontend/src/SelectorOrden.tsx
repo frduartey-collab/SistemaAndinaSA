@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth, type RutaApi } from './AuthContext'
 import { mensajeError } from './api'
@@ -73,7 +74,7 @@ export function SelectorOrden<T extends { id: number }>({
               onChange={(evento) => setTexto(evento.target.value)}
               onKeyDown={(evento) => { if (evento.key === 'Enter') filtrar(evento) }} />
           </div>
-          <button className="boton boton-secundario" type="button" disabled={cargando} onClick={() => filtrar()}>Buscar</button>
+          <button className="boton boton-secundario" type="button" disabled={cargando} onClick={() => filtrar()}><Icono nombre="buscar" />Buscar</button>
         </div>
       )}
       {cargando && <p className="ayuda" role="status">Cargando opciones…</p>}
@@ -83,7 +84,7 @@ export function SelectorOrden<T extends { id: number }>({
           <button className="boton boton-secundario" type="button" onClick={() => {
             setCarga({ tipo: 'cargando' })
             setIntento((anterior) => anterior + 1)
-          }}>Reintentar</button>
+          }}><Icono nombre="sincronizar" />Reintentar</button>
         </div>
       )}
       {carga.tipo === 'lista' && (
@@ -109,9 +110,9 @@ export function SelectorOrden<T extends { id: number }>({
               <p>Página {pagina} de {paginas}</p>
               <div>
                 <button className="boton boton-secundario" type="button" disabled={pagina <= 1}
-                  onClick={() => cambiarPagina(pagina - 1)}>Anterior</button>
+                  onClick={() => cambiarPagina(pagina - 1)}><Icono nombre="anterior" />Anterior</button>
                 <button className="boton boton-secundario" type="button" disabled={pagina >= paginas}
-                  onClick={() => cambiarPagina(pagina + 1)}>Siguiente</button>
+                  onClick={() => cambiarPagina(pagina + 1)}><Icono nombre="siguiente" />Siguiente</button>
               </div>
             </nav>
           )}
