@@ -2,10 +2,11 @@ import express, { type Request, type Response, type NextFunction, type ErrorRequ
 import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { Datos } from './datos.js';
+import { Fallas } from './fallas.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken, rutValido } from './seguridad.js';
-import { solicitud, idPositivo, consultaActivos } from './validacion.js';
-import type { LoginSolicitud, LoginRespuesta, UsuarioSesion, ErrorRespuesta, ActivoCrearSolicitud, ActivoActualizarSolicitud } from './dominio.js';
+import { solicitud, idPositivo, consultaActivos, consultaFallas } from './validacion.js';
+import type { LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta, ActivoCrearSolicitud, ActivoActualizarSolicitud, FallaCrearSolicitud } from './dominio.js';
 
 interface Options {
   secret: string;
@@ -28,6 +29,7 @@ export async function crearAplicacion(options: Options) {
   const windowMs = options.windowMs ?? 300_000;
   if (!Number.isInteger(ttl) || ttl < 1 || !Number.isInteger(max) || max < 1 || windowMs < 1) throw new Error('Políticas de sesión inválidas.');
   const datos = options.datos ?? new Datos();
+  const fallas = new Fallas(datos);
   const dummy = await hashPassword(randomUUID());
   const app = express();
   app.disable('x-powered-by');
@@ -106,6 +108,53 @@ export async function crearAplicacion(options: Options) {
     const body: LoginRespuesta = { token, usuario: publico(user), expiraEn: ttl };
     res.status(200).json(body);
   });
+  app.post('/auth/register', (req, res, next) => {
+    const origen = 'registro:' + (req.ip ?? req.socket.remoteAddress ?? 'local');
+    const ahora = now();
+    if (datos.intentos(origen, ahora) >= 10) bloqueado(origen, res);
+    datos.fallarLogin(origen, ahora, 600_000);
+
+    if (req.get('Authorization') !== undefined) {
+      return autenticado(req, res, next);
+    }
+    next();
+  }, async (req, res) => {
+    const input = solicitud<RegistroSolicitud>('auth', 'RegistroSolicitud', req.body);
+    const actor = res.locals.usuario as UsuarioSesion | undefined;
+    const rolPublico = input.rol === 'TECNICO' || input.rol === 'TRABAJADOR';
+    const puedeCrearBodega = input.rol === 'BODEGA' && actor?.rol === 'SUPERVISOR';
+    if (!rolPublico && !puedeCrearBodega && actor?.rol !== 'JEFATURA') {
+      throw new ErrorAPI(403, 'SIN_PERMISO', 'Tu sesión no permite asignar ese rol.');
+    }
+
+    const rut = input.rut.toUpperCase();
+    if (rut.startsWith('0') || !rutValido(rut)) {
+      throw new ErrorAPI(400, 'RUT_INVALIDO', 'Ingresa un RUT válido, sin ceros al comienzo.');
+    }
+    if (Buffer.byteLength(input.password, 'utf8') > 72) {
+      throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'La contraseña admite hasta 72 bytes.');
+    }
+
+    const verificarRutLibre = () => {
+      const rutConCero = rut.length === 9 ? '0' + rut : rut;
+      if (datos.usuarioPorRut(rut) || (rutConCero !== rut && datos.usuarioPorRut(rutConCero))) {
+        throw new ErrorAPI(409, 'RUT_DUPLICADO', 'Ya existe una cuenta con ese RUT.');
+      }
+    };
+
+    verificarRutLibre();
+    const passwordHash = await hashPassword(input.password);
+    const usuario = datos.transaccion(() => {
+      verificarRutLibre();
+      const creado = datos.crearUsuario({
+        rut, nombre: input.nombre.trim(), passwordHash, rol: input.rol, activo: true,
+      });
+      datos.auditar(actor?.id ?? creado.id, 'USUARIO_REGISTRADO', creado.id, now());
+      return creado;
+    });
+    res.status(201).json(publico(usuario));
+  });
+
   app.get('/auth/me', autenticado, (_req, res) => { res.json((res.locals as Context).usuario); });
   app.post('/auth/logout', autenticado, (_req, res) => {
     // El YAML exige revocación: además de descartar el token en el cliente, invalidamos su sesión.
@@ -134,6 +183,26 @@ export async function crearAplicacion(options: Options) {
   app.delete('/activos/:id', autenticado, escribirActivos, (req, res) => {
     datos.eliminar(idPositivo(req.params.id), (res.locals as Context).usuario.id, now());
     res.status(204).end();
+  });
+
+  function accesoFallas(_req: Request, res: Response, next: NextFunction): void {
+    const { rol } = (res.locals as Context).usuario;
+    if (!['SUPERVISOR', 'JEFATURA', 'TECNICO', 'TRABAJADOR'].includes(rol)) {
+      next(new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene acceso a Fallas.'));
+      return;
+    }
+    next();
+  }
+
+  app.post('/fallas', autenticado, accesoFallas, (req, res) => {
+    const input = solicitud<FallaCrearSolicitud>('fallas', 'FallaCrearSolicitud', req.body);
+    const { id } = (res.locals as Context).usuario;
+    res.status(201).json(fallas.crear(input, id, now()));
+  });
+  app.get('/fallas', autenticado, accesoFallas, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    const admin = rol === 'SUPERVISOR' || rol === 'JEFATURA';
+    res.json(fallas.listar(consultaFallas(req.query), admin ? undefined : id));
   });
 
   app.use((_req, res) => { res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'La ruta no existe.' }); });

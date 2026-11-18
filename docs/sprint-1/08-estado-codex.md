@@ -41,7 +41,7 @@ Se conservaron las 40 pruebas previas, adaptadas a bcrypt, better-sqlite3 y al n
 
 ## Pendientes de cierre formal
 
-Peer review humano, aceptación del PO y firmas siguen pendientes; las actas son borradores SIN FIRMA. No se declaran 8 SP aceptados ni RNF productivos acreditados. HU-03/HU-04/HU-05 permanecen como backlog de Sprint 2.
+Peer review humano, aceptación del PO y firmas siguen pendientes; las actas son borradores SIN FIRMA. No se declaran 8 SP aceptados ni RNF productivos acreditados. HU-04 y HU-05 permanecen como backlog de Sprint 2.
 
 ## Frontend · etapa de interfaz completada
 
@@ -50,3 +50,13 @@ La carpeta frontend contiene la interfaz React de HU-01 y HU-02. El login usa RU
 La ficha consulta el activo por ID. El formulario crea y edita mediante la API, conserva el código al editar y muestra los errores sin perder los datos escritos. Si la sesión vence mientras el usuario prepara cambios, puede recuperar el borrador en la misma pestaña al volver a ingresar con la misma cuenta. La confirmación de baja muestra el código y el nombre y explica que ese código sigue reservado.
 
 Verificación local: npm run build del frontend y validación de los dos contratos OpenAPI. En Chromium, con una base SQLite temporal, se comprobó la redirección sin sesión, el login, los filtros y paginación, el detalle, la creación, el código duplicado, la edición, la recuperación del borrador tras revocar una sesión, la baja y el cierre de sesión. Se verificaron los cinco roles y el ancho móvil de 390 px. La API se ejecuta en localhost:3000 y el frontend en localhost:5173.
+
+## Registro de usuarios y reporte de fallas (avance HU-03)
+
+POST /auth/register guarda una cuenta activa con RUT único y hash bcrypt. El alta pública admite Técnico y Trabajador. Supervisor y Jefatura pueden crear cuentas de Bodega con su sesión. Jefatura puede asignar roles administrativos. El alta pública redirige al login y el alta administrativa confirma la creación dentro de la sesión vigente.
+
+POST /fallas guarda el equipo vigente, autor de la sesión, descripción, prioridad, estado Reportada y fecha. Si no se envía prioridad, toma la criticidad actual del equipo. GET /fallas devuelve resultados paginados. Supervisor/Jefatura ven todos los reportes, Técnico/Trabajador ven los propios y Bodega recibe 403. La pantalla Fallas incluye buscador, sugerencia editable y reintento de guardado con los datos conservados.
+
+Las fotografías son una selección simulada de hasta tres imágenes. La carga real y el aviso automático al supervisor siguen pendientes. HU-04 y HU-05 quedan para otra entrega.
+
+Validación de esta entrega: 11 operaciones en tres contratos OpenAPI, 48 pruebas HTTP/de integración aprobadas y compilación de backend y frontend. La verificación de navegador usó SQLite en memoria y datos sintéticos.

@@ -1,19 +1,15 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { Navigate } from 'react-router'
+import { Link, Navigate, useLocation } from 'react-router'
 import { useAuth } from './AuthContext'
 import { ErrorApi, mensajeError } from './api'
 
-function normalizarRut(entrada: string) {
-  const limpio = entrada.trim().toUpperCase().replace(/[.\s]/g, '')
-  if (/^[0-9]{7,8}[0-9K]$/.test(limpio)) {
-    return limpio.slice(0, -1) + '-' + limpio.slice(-1)
-  }
-  return limpio
-}
+import { normalizarRut } from './rut'
 
 export function Login() {
   const { estado, puedeLeer, iniciarSesion } = useAuth()
-  const [rut, setRut] = useState('')
+  const { state } = useLocation()
+  const rutRegistrado = typeof state?.rutRegistrado === 'string' ? state.rutRegistrado : ''
+  const [rut, setRut] = useState(rutRegistrado)
   const [password, setPassword] = useState('')
   const [visible, setVisible] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -72,6 +68,7 @@ export function Login() {
       <section className="panel-login" aria-labelledby="titulo-login">
         <h1 id="titulo-login">Iniciar sesión</h1>
         {estado.tipo === 'sin-sesion' && estado.aviso && <p className="aviso" role="status">{estado.aviso}</p>}
+        {rutRegistrado && <p className="aviso aviso-exito" role="status">Cuenta creada. Ingresa con tu RUT y contraseña.</p>}
         {error && <p className="aviso aviso-error" role="alert">{error}</p>}
         <form noValidate onSubmit={ingresar} className="formulario-login" aria-busy={enviando}>
           <div className="campo">
@@ -119,6 +116,7 @@ export function Login() {
             {enviando ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
+        <p className="enlace-cuenta"><Link to="/registro">¿No tienes cuenta? Regístrate</Link></p>
         <p className="solo-lectores" role="status">{enviando ? 'Ingresando…' : ''}</p>
       </section>
     </main>

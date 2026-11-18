@@ -10,10 +10,11 @@ export type EstadoEquipo = 'OPERATIVO' | 'EN_FALLA' | 'EN_MANTENCIÓN' | 'FUERA_
 
 export interface LoginSolicitud { rut: string; password: string }
 export interface UsuarioSesion { id: number; rut: string; nombre: string; rol: Rol; activo: boolean }
+export interface RegistroSolicitud extends LoginSolicitud { nombre: string; rol: Rol }
 export interface LoginRespuesta { token: string; usuario: UsuarioSesion; expiraEn: number }
 export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_INACTIVO'
   | 'DEMASIADOS_INTENTOS' | 'DATOS_INVALIDOS' | 'NO_AUTORIZADO' | 'SIN_PERMISO'
-  | 'CODIGO_FORMATO_INVALIDO' | 'CODIGO_DUPLICADO' | 'ACTIVO_NO_ENCONTRADO';
+  | 'CODIGO_FORMATO_INVALIDO' | 'CODIGO_DUPLICADO' | 'ACTIVO_NO_ENCONTRADO' | 'RUT_DUPLICADO';
 export interface ErrorRespuesta { codigo: CodigoError; mensaje: string }
 
 export interface ActivoCrearSolicitud {
@@ -55,3 +56,27 @@ export interface ConsultaActivos {
   size: number;
 }
 export interface PaginaActivos { items: ActivoRespuesta[]; total: number; page: number; size: number }
+
+export type EstadoFalla = 'REPORTADA';
+
+export interface FallaCrearSolicitud {
+  equipo_id: number;
+  descripcion: string;
+  prioridad?: CriticidadEquipo;
+}
+
+export interface FallaRespuesta {
+  id: number;
+  equipo_id: number;
+  equipo_codigo: CodigoEquipo;
+  equipo_nombre: string;
+  usuario_id: number;
+  usuario_nombre: string;
+  descripcion: string;
+  prioridad: CriticidadEquipo;
+  estado: EstadoFalla;
+  fecha_reporte: string;
+}
+
+export interface ConsultaFallas { page: number; size: number }
+export interface PaginaFallas extends ConsultaFallas { items: FallaRespuesta[]; total: number }

@@ -95,6 +95,64 @@ paths:
               example:
                 codigo: DEMASIADOS_INTENTOS
                 mensaje: Demasiados intentos. Intente más tarde.
+  /auth/register:
+    post:
+      tags: [Autenticación]
+      operationId: registrarUsuario
+      summary: Crear una cuenta con RUT
+      description: |
+        El registro público permite TECNICO y TRABAJADOR. Para crear BODEGA se
+        requiere sesión SUPERVISOR o JEFATURA. Solo JEFATURA puede crear
+        SUPERVISOR o JEFATURA. Las cuentas se crean activas. Diez solicitudes
+        de registro cada diez minutos por origen. El RUT se registra sin ceros
+        al comienzo.
+      security:
+        - {}
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistroSolicitud"
+      responses:
+        "201":
+          description: Cuenta creada. No inicia sesión.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsuarioSesion"
+        "400":
+          description: RUT_INVALIDO o DATOS_INVALIDOS.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorRespuesta"
+        "401":
+          $ref: "#/components/responses/NoAutorizado"
+        "403":
+          description: SIN_PERMISO para asignar el rol solicitado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorRespuesta"
+        "409":
+          description: RUT_DUPLICADO. Ya existe una cuenta con ese RUT.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorRespuesta"
+        "429":
+          description: DEMASIADOS_INTENTOS desde este origen.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorRespuesta"
   /auth/me:
     get:
       tags:
@@ -180,6 +238,26 @@ components:
           minLength: 1
           writeOnly: true
           maxLength: 1024
+    RegistroSolicitud:
+      type: object
+      additionalProperties: false
+      required: [rut, nombre, password, rol]
+      properties:
+        rut:
+          $ref: "#/components/schemas/Rut"
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: '\S'
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          writeOnly: true
+          description: Entre 8 caracteres y 72 bytes UTF-8.
+        rol:
+          $ref: "#/components/schemas/Rol"
     UsuarioSesion:
       type: object
       additionalProperties: false
@@ -236,6 +314,8 @@ components:
         codigo:
           type: string
           enum:
+            - RUT_DUPLICADO
+            - SIN_PERMISO
             - RUT_INVALIDO
             - CREDENCIALES_INVALIDAS
             - USUARIO_INACTIVO

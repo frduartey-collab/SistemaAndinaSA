@@ -3,6 +3,8 @@ import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router'
 import { useAuth } from './AuthContext'
 import { CatalogoEquipos } from './CatalogoEquipos'
 import { Login } from './Login'
+import { Registro } from './Registro'
+import { ReportarFalla } from './ReportarFalla'
 import type { BorradorEquipo } from './FormularioEquipo'
 import { etiquetasRol } from './activos'
 import { mensajeError } from './api'
@@ -38,12 +40,14 @@ function LayoutProtegido({ alSalir }: { alSalir: () => void }) {
           {puedeLeer && (
             <nav aria-label="Secciones de Andina">
               <NavLink className="enlace-nav" to="/equipos">Equipos</NavLink>
+              <NavLink className="enlace-nav" to="/fallas">Fallas</NavLink>
+              {puedeEscribir && <NavLink className="enlace-nav" to="/registro">Crear cuenta</NavLink>}
             </nav>
           )}
           <div className="cuenta">
             <div>
               <strong>{estado.usuario.nombre}</strong>
-              <p className="rol">{etiquetasRol[estado.usuario.rol]}{puedeLeer && !puedeEscribir ? ' · Solo lectura' : ''}</p>
+              <p className="rol">{etiquetasRol[estado.usuario.rol]}{puedeLeer && !puedeEscribir ? ' · Equipos: solo lectura' : ''}</p>
             </div>
             <button className="boton boton-secundario" type="button" onClick={salir} disabled={saliendo}>
               {saliendo ? 'Cerrando sesión…' : 'Cerrar sesión'}
@@ -84,6 +88,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/registro" element={<Registro />} />
       <Route element={<LayoutProtegido alSalir={() => setBorrador(null)} />}>
         <Route
           path="/equipos"
@@ -95,12 +100,13 @@ export default function App() {
             />
           ) : <Navigate to="/sin-acceso" replace />}
         />
+        <Route path="/fallas" element={puedeLeer ? <ReportarFalla /> : <Navigate to="/sin-acceso" replace />} />
         <Route
           path="/sin-acceso"
           element={puedeLeer ? <Navigate to="/equipos" replace /> : (
             <section className="panel estado-pagina">
               <h1>Acceso restringido</h1>
-              <p>Tu rol no tiene acceso al catálogo de equipos.</p>
+              <p>Tu rol no tiene acceso al catálogo de equipos ni a los reportes de fallas.</p>
             </section>
           )}
         />

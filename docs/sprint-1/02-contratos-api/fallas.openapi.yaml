@@ -1,0 +1,204 @@
+openapi: 3.1.0
+info:
+  title: Manufacturas Andina — Reporte de fallas
+  version: 0.1.0
+  description: |
+    HU-03. SUPERVISOR, JEFATURA, TECNICO y TRABAJADOR pueden reportar en equipos
+    vigentes. Supervisor y Jefatura consultan todos los reportes. Técnico y
+    Trabajador consultan los propios. BODEGA no accede. Las fotografías se
+    simulan en la interfaz y quedan fuera del cuerpo de esta API.
+security:
+  - bearerAuth: []
+paths:
+  /fallas:
+    post:
+      operationId: reportarFalla
+      summary: Registrar una falla
+      description: |
+        El servidor asigna el usuario de la sesión, fecha y estado REPORTADA.
+        Si no se envía prioridad, se usa la criticidad actual del equipo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FallaCrearSolicitud"
+      responses:
+        "201":
+          description: Falla registrada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FallaRespuesta"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutorizado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+        "404":
+          description: ACTIVO_NO_ENCONTRADO. Equipo inexistente o dado de baja.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorRespuesta"
+    get:
+      operationId: listarFallas
+      summary: Consultar reportes de falla según el rol
+      parameters:
+        - in: query
+          name: page
+          schema:
+            $ref: "#/components/schemas/Pagina"
+        - in: query
+          name: size
+          schema:
+            $ref: "#/components/schemas/Tamano"
+      responses:
+        "200":
+          description: Resultados en orden del más reciente al más antiguo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginaFallas"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          $ref: "#/components/responses/NoAutorizado"
+        "403":
+          $ref: "#/components/responses/SinPermiso"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    DatosInvalidos:
+      description: DATOS_INVALIDOS. Cuerpo o parámetros fuera del contrato.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorRespuesta"
+    NoAutorizado:
+      description: NO_AUTORIZADO. Se requiere una sesión válida.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            const: Bearer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorRespuesta"
+    SinPermiso:
+      description: SIN_PERMISO. El rol no puede acceder a Fallas.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorRespuesta"
+  schemas:
+    Id:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    Pagina:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+      default: 1
+    Tamano:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 20
+    CriticidadEquipo:
+      type: string
+      enum: [ALTA, MEDIA, BAJA]
+    EstadoFalla:
+      type: string
+      const: REPORTADA
+    ConsultaFallas:
+      type: object
+      additionalProperties: false
+      required: [page, size]
+      properties:
+        page:
+          $ref: "#/components/schemas/Pagina"
+        size:
+          $ref: "#/components/schemas/Tamano"
+    FallaCrearSolicitud:
+      type: object
+      additionalProperties: false
+      required: [equipo_id, descripcion]
+      properties:
+        equipo_id:
+          $ref: "#/components/schemas/Id"
+        descripcion:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: '\S'
+          not:
+            pattern: '\u0000'
+        prioridad:
+          $ref: "#/components/schemas/CriticidadEquipo"
+    FallaRespuesta:
+      type: object
+      additionalProperties: false
+      required: [id, equipo_id, equipo_codigo, equipo_nombre, usuario_id, usuario_nombre, descripcion, prioridad, estado, fecha_reporte]
+      properties:
+        id:
+          $ref: "#/components/schemas/Id"
+        equipo_id:
+          $ref: "#/components/schemas/Id"
+        equipo_codigo:
+          type: string
+          pattern: ^EQ-[0-9]{4}$
+        equipo_nombre:
+          type: string
+        usuario_id:
+          $ref: "#/components/schemas/Id"
+        usuario_nombre:
+          type: string
+        descripcion:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          pattern: '\S'
+          not:
+            pattern: '\u0000'
+        prioridad:
+          $ref: "#/components/schemas/CriticidadEquipo"
+        estado:
+          $ref: "#/components/schemas/EstadoFalla"
+        fecha_reporte:
+          type: string
+          format: date-time
+    PaginaFallas:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FallaRespuesta"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          $ref: "#/components/schemas/Pagina"
+        size:
+          $ref: "#/components/schemas/Tamano"
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          enum: [DATOS_INVALIDOS, NO_AUTORIZADO, SIN_PERMISO, ACTIVO_NO_ENCONTRADO]
+        mensaje:
+          type: string
+          minLength: 1

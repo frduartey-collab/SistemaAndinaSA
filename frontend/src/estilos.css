@@ -21,7 +21,7 @@ h1, h2 { line-height: 1.18; letter-spacing: -0.025em; }
 h1 { font-size: clamp(1.75rem, 4vw, 2.65rem); }
 h2 { font-size: clamp(1.25rem, 3vw, 1.6rem); }
 p + p { margin-top: 0.5rem; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: 0.62; cursor: default; }
 :focus-visible { outline: 3px solid #007790; outline-offset: 3px; }
@@ -71,7 +71,7 @@ button:disabled { opacity: 0.62; cursor: default; }
 
 .campo { display: grid; align-content: start; gap: 0.35rem; min-width: 0; }
 .campo label { font-size: 0.875rem; font-weight: 650; }
-.campo input, .campo select {
+.campo input, .campo select, .campo textarea {
   width: 100%;
   min-width: 0;
   min-height: 2.75rem;
@@ -82,6 +82,7 @@ button:disabled { opacity: 0.62; cursor: default; }
   border-radius: 0.45rem;
 }
 
+.campo textarea { resize: vertical; }
 .campo input[readonly] { background: #edf2ee; }
 .campo [aria-invalid="true"] { border-color: var(--peligro); }
 .ayuda, .rol { color: var(--suave); font-size: 0.85rem; }
@@ -315,3 +316,82 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
   .filtros, .campos-equipo, .datos-detalle { grid-template-columns: minmax(0, 1fr); }
 }
 
+
+.enlace-cuenta { margin-top: 1.15rem; font-size: 0.9rem; }
+.enlace-cuenta a { color: var(--verde); font-weight: 650; text-underline-offset: 0.2em; }
+
+.modulo-fallas {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.formulario-falla, .reportes { min-width: 0; padding: clamp(1rem, 3vw, 1.5rem); }
+.formulario-falla h2, .reportes h2 { margin-bottom: 1rem; }
+.campos-falla { display: grid; gap: 1rem; }
+.acciones-falla { margin-top: 1rem; }
+
+.opciones-equipo, .lista-fotos, .lista-reportes { margin: 0; padding: 0; list-style: none; }
+
+.opciones-equipo {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 13rem;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.opcion-equipo, .equipo-elegido {
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--borde);
+  border-radius: 0.5rem;
+}
+
+.opcion-equipo {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  overflow-wrap: anywhere;
+  background: #f7faf8;
+  color: var(--tinta);
+  text-align: left;
+}
+
+.opcion-equipo:hover { background: var(--menta); }
+.opcion-equipo span { font-size: 0.85rem; color: var(--suave); }
+
+.equipo-elegido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  overflow-wrap: anywhere;
+  background: var(--menta);
+}
+
+.fotos-falla {
+  border: 1px dashed #a7beb3;
+  border-radius: 0.55rem;
+  padding: 0.7rem 0.8rem;
+}
+
+.lista-fotos li, .reporte-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.lista-fotos li { overflow-wrap: anywhere; }
+.lista-reportes { margin-top: 0.6rem; }
+.reporte { padding-block: 0.9rem; border-top: 1px solid var(--borde); }
+.reporte h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.descripcion-falla { margin-top: 0.4rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reportes .paginacion { padding-inline: 0; }
+
+@media (max-width: 52rem) {
+  .modulo-fallas { grid-template-columns: minmax(0, 1fr); }
+}

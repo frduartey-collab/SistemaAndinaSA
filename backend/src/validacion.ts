@@ -3,10 +3,10 @@ import { createRequire } from 'node:module';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv';
 import { parseDocument } from 'yaml';
-import type { ConsultaActivos } from './dominio.js';
+import type { ConsultaActivos, ConsultaFallas } from './dominio.js';
 import { ErrorAPI } from './errores.js';
 
-type Contrato = 'auth' | 'activos';
+type Contrato = 'auth' | 'activos' | 'fallas';
 interface Documento { components: { schemas: Record<string, object> } }
 const ajv = new Ajv2020({ strict: false, strictNumbers: true, allErrors: true });
 const addFormats = createRequire(import.meta.url)('ajv-formats') as (instance: Ajv2020) => void;
@@ -51,8 +51,9 @@ export function idPositivo(value: unknown): number {
   return Number(value);
 }
 
-/** Normaliza solo los enteros HTTP; los demás filtros se validan desde OpenAPI. */
-export function consultaActivos(query: Record<string, unknown>): ConsultaActivos {
+function validarConsulta<T extends { page: number; size: number }>(
+  contrato: Contrato, nombre: string, query: Record<string, unknown>,
+): T {
   function entero(raw: unknown, defecto: number): number {
     if (raw === undefined) return defecto;
     if (typeof raw !== 'string' || !/^[1-9][0-9]*$/.test(raw)) {
@@ -60,11 +61,20 @@ export function consultaActivos(query: Record<string, unknown>): ConsultaActivos
     }
     return Number(raw);
   }
-  const value = solicitud<ConsultaActivos>('activos', 'ConsultaActivos', {
+  const value = solicitud<T>(contrato, nombre, {
     ...query, page: entero(query.page, 1), size: entero(query.size, 20),
   });
   if (!Number.isSafeInteger((value.page - 1) * value.size)) {
     throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'La página está fuera de rango.');
   }
   return value;
+}
+
+/** Normaliza solo los enteros HTTP; los demás filtros se validan desde OpenAPI. */
+export function consultaActivos(query: Record<string, unknown>): ConsultaActivos {
+  return validarConsulta<ConsultaActivos>('activos', 'ConsultaActivos', query);
+}
+
+export function consultaFallas(query: Record<string, unknown>): ConsultaFallas {
+  return validarConsulta<ConsultaFallas>('fallas', 'ConsultaFallas', query);
 }
