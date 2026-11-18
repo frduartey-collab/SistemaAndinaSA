@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "SIGEM · Sistema Gestor de Mantenimiento",
+  "short_name": "SIGEM",
+  "lang": "es-CL",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0b3354",
+  "icons": [
+    { "src": "/identidad/sigem-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/identidad/sigem-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/identidad/sigem-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

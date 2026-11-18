@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { ActivoRespuesta, CriticidadEquipo, EstadoEquipo, PaginaActivos } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
@@ -131,7 +132,7 @@ export function CatalogoEquipos({ borrador, alConservarBorrador }: PropsCatalogo
         </div>
         {puedeEscribir && (
           <button type="button" className="boton boton-primario" onClick={() => setAccion({ tipo: 'crear' })}>
-            <span aria-hidden="true">＋</span> Nuevo equipo
+            <Icono nombre="crear" /> Nuevo equipo
           </button>
         )}
       </div>
@@ -162,8 +163,8 @@ export function CatalogoEquipos({ borrador, alConservarBorrador }: PropsCatalogo
           </select>
         </div>
         <div className="filtros-acciones">
-          <button type="submit" className="boton boton-primario" disabled={cargando}>Buscar</button>
-          <button type="button" className="boton boton-secundario" onClick={limpiarFiltros} disabled={cargando}>Limpiar</button>
+          <button type="submit" className="boton boton-primario" disabled={cargando}><Icono nombre="buscar" />Buscar</button>
+          <button type="button" className="boton boton-secundario" onClick={limpiarFiltros} disabled={cargando}><Icono nombre="limpiar" />Limpiar</button>
         </div>
       </form>
 
@@ -171,7 +172,7 @@ export function CatalogoEquipos({ borrador, alConservarBorrador }: PropsCatalogo
       {vista.tipo === 'error' && (
         <div className="aviso aviso-error">
           <p role="alert">{vista.mensaje}{pagina ? ' Se muestran los últimos resultados disponibles.' : ''}</p>
-          <button type="button" className="boton boton-secundario" onClick={refrescar}>Reintentar</button>
+          <button type="button" className="boton boton-secundario" onClick={refrescar}><Icono nombre="sincronizar" />Reintentar</button>
         </div>
       )}
 
@@ -209,15 +210,15 @@ export function CatalogoEquipos({ borrador, alConservarBorrador }: PropsCatalogo
                         <div className="acciones-fila">
                           <button type="button" className="boton-texto" disabled={cargando}
                             aria-label={'Ver detalle de ' + equipo.codigo}
-                            onClick={() => setAccion({ tipo: 'detalle', equipo })}>Ver detalle</button>
+                            onClick={() => setAccion({ tipo: 'detalle', equipo })}><Icono nombre="ver" />Ver detalle</button>
                           {puedeEscribir && (
                             <>
                               <button type="button" className="boton-texto" disabled={cargando}
                                 aria-label={'Editar ' + equipo.codigo}
-                                onClick={() => setAccion({ tipo: 'editar', equipo })}>Editar</button>
+                                onClick={() => setAccion({ tipo: 'editar', equipo })}><Icono nombre="editar" />Editar</button>
                               <button type="button" className="boton-texto peligro" disabled={cargando}
                                 aria-label={'Dar de baja ' + equipo.codigo}
-                                onClick={() => setAccion({ tipo: 'baja', equipo })}>Dar de baja</button>
+                                onClick={() => setAccion({ tipo: 'baja', equipo })}><Icono nombre="baja" />Dar de baja</button>
                             </>
                           )}
                         </div>
@@ -239,9 +240,9 @@ export function CatalogoEquipos({ borrador, alConservarBorrador }: PropsCatalogo
               <p>Página {pagina.page} de {ultimaPagina}</p>
               <div>
                 <button type="button" className="boton boton-secundario" disabled={vista.tipo !== 'listo' || pagina.page <= 1}
-                  onClick={() => cargar({ ...consulta, page: pagina.page - 1 })}>Anterior</button>
+                  onClick={() => cargar({ ...consulta, page: pagina.page - 1 })}><Icono nombre="anterior" />Anterior</button>
                 <button type="button" className="boton boton-secundario" disabled={vista.tipo !== 'listo' || pagina.page >= ultimaPagina}
-                  onClick={() => cargar({ ...consulta, page: pagina.page + 1 })}>Siguiente</button>
+                  onClick={() => cargar({ ...consulta, page: pagina.page + 1 })}><Icono nombre="siguiente" />Siguiente</button>
               </div>
             </nav>
           )}

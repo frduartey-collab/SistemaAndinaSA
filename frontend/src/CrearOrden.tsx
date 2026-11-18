@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useState, type FormEvent } from 'react'
 import type { FallaRespuesta, OrdenCrearSolicitud, OrdenRespuesta, TecnicoResumen } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
@@ -79,6 +80,7 @@ export function CrearOrden({ fallaInicial, alCerrar, alGuardar }: Props) {
         <div className="dialogo-acciones">
           <button type="button" className="boton boton-secundario" onClick={alCerrar} disabled={guardando}>Cancelar</button>
           <button type="submit" className="boton boton-primario" disabled={guardando}>
+            <Icono nombre="guardar" />
             {guardando ? 'Creando…' : 'Guardar orden'}
           </button>
         </div>

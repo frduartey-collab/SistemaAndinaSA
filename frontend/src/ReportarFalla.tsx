@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import type { ActivoRespuesta, CriticidadEquipo, FallaCrearSolicitud, FallaRespuesta } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
@@ -117,7 +118,7 @@ export function ReportarFalla() {
                 {equipo && <p className="ayuda">La sugerencia se basa en la criticidad del equipo. Puedes cambiarla.</p>}
               </div>
               <div className="campo fotos-falla">
-                <label htmlFor="falla-fotos">Fotografías ({fotos.length}/3)</label>
+                <label htmlFor="falla-fotos" className="etiqueta-con-icono"><Icono nombre="foto" />Fotografías ({fotos.length}/3)</label>
                 <p className="ayuda" id="falla-fotos-ayuda">Selección de prueba. Las imágenes no se envían ni se guardan.</p>
                 <input id="falla-fotos" type="file" multiple accept="image/*" onChange={seleccionarFotos}
                   aria-describedby="falla-fotos-ayuda" disabled={fotos.length >= 3} />
@@ -131,7 +132,7 @@ export function ReportarFalla() {
                           onClick={() => {
                             setFotos((actuales) => actuales.filter((actual) => actual.clave !== foto.clave))
                             setAvisoFotos('')
-                          }}>Quitar</button>
+                          }}><Icono nombre="cerrar" />Quitar</button>
                       </li>
                     ))}
                   </ul>
@@ -140,6 +141,7 @@ export function ReportarFalla() {
             </fieldset>
             <div className="acciones-falla">
               <button className="boton boton-primario" type="submit" disabled={guardando}>
+                <Icono nombre="guardar" />
                 {guardando ? 'Guardando…' : 'Guardar falla'}
               </button>
               <p className="solo-lectores" role="status">{guardando ? 'Guardando falla…' : ''}</p>

@@ -1,4 +1,7 @@
+import { Icono } from './Icono'
+import { MarcaSigem } from './MarcaSigem'
 import { useState } from 'react'
+import { AjustesInterfaz } from './AjustesInterfaz'
 import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router'
 import { useAuth } from './AuthContext'
 import { CatalogoEquipos } from './CatalogoEquipos'
@@ -37,15 +40,15 @@ function LayoutProtegido({ alSalir }: { alSalir: () => void }) {
       <a href="#contenido" className="saltar-contenido">Saltar al contenido</a>
       <header className="cabecera">
         <div className="cabecera-interior">
-          <div className="identidad"><span className="marca" aria-hidden="true">A</span> Manufacturas Andina</div>
+          <MarcaSigem />
           {puedeLeer && (
-            <nav aria-label="Secciones de Andina">
-              <NavLink className="enlace-nav" to="/equipos">Equipos</NavLink>
-              <NavLink className="enlace-nav" to="/fallas">Fallas</NavLink>
+            <nav className="navegacion-sigem" aria-label="Secciones de SIGEM">
+              <NavLink className="enlace-nav" to="/equipos"><span className="icono-nav"><Icono nombre="equipo" /></span>Equipos</NavLink>
+              <NavLink className="enlace-nav" to="/fallas"><span className="icono-nav"><Icono nombre="falla" /></span>Fallas</NavLink>
               {(puedeEscribir || estado.usuario.rol === 'TECNICO') && (
-                <NavLink className="enlace-nav" to="/ordenes">Órdenes</NavLink>
+                <NavLink className="enlace-nav" to="/ordenes"><span className="icono-nav"><Icono nombre="orden" /></span>Órdenes</NavLink>
               )}
-              {puedeEscribir && <NavLink className="enlace-nav" to="/registro">Crear cuenta</NavLink>}
+              {puedeEscribir && <NavLink className="enlace-nav" to="/registro"><span className="icono-nav"><Icono nombre="cuenta" /></span>Crear cuenta</NavLink>}
             </nav>
           )}
           <div className="cuenta">
@@ -53,7 +56,9 @@ function LayoutProtegido({ alSalir }: { alSalir: () => void }) {
               <strong>{estado.usuario.nombre}</strong>
               <p className="rol">{etiquetasRol[estado.usuario.rol]}{puedeLeer && !puedeEscribir ? ' · Equipos: solo lectura' : ''}</p>
             </div>
+            <AjustesInterfaz />
             <button className="boton boton-secundario" type="button" onClick={salir} disabled={saliendo}>
+              <Icono nombre="salir" />
               {saliendo ? 'Cerrando sesión…' : 'Cerrar sesión'}
             </button>
           </div>
@@ -81,7 +86,7 @@ export default function App() {
       <main className="contenido panel estado-pagina">
         <h1>No se pudo comprobar la sesión</h1>
         <p className="aviso aviso-error" role="alert">Comprueba que el servidor de Andina esté en marcha.</p>
-        <button className="boton boton-primario" type="button" onClick={reintentar}>Reintentar</button>
+        <button className="boton boton-primario" type="button" onClick={reintentar}><Icono nombre="sincronizar" />Reintentar</button>
       </main>
     )
   }

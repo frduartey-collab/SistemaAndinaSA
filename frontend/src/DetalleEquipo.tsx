@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useEffect, useState } from 'react'
 import type { ActivoRespuesta } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
@@ -49,7 +50,7 @@ export function DetalleEquipo({ id, codigo, alCerrar, alEditar }: PropsDetalle) 
       {estado.tipo === 'error' && (
         <>
           <p className="aviso aviso-error" role="alert">{estado.mensaje}</p>
-          <button className="boton boton-secundario" type="button" onClick={reintentar}>Reintentar</button>
+          <button className="boton boton-secundario" type="button" onClick={reintentar}><Icono nombre="sincronizar" />Reintentar</button>
         </>
       )}
       {estado.tipo === 'listo' && (
@@ -65,9 +66,9 @@ export function DetalleEquipo({ id, codigo, alCerrar, alEditar }: PropsDetalle) 
             <div><dt>Fecha de alta</dt><dd>{mostrarFecha(estado.equipo.fecha_alta)}</dd></div>
           </dl>
           <div className="dialogo-acciones">
-            <button className="boton boton-secundario" type="button" onClick={alCerrar}>Cerrar</button>
+            <button className="boton boton-secundario" type="button" onClick={alCerrar}><Icono nombre="cerrar" />Cerrar</button>
             {alEditar && (
-              <button className="boton boton-primario" type="button" onClick={() => alEditar(estado.equipo)}>Editar equipo</button>
+              <button className="boton boton-primario" type="button" onClick={() => alEditar(estado.equipo)}><Icono nombre="editar" />Editar equipo</button>
             )}
           </div>
         </>

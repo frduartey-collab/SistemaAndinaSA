@@ -1,3 +1,4 @@
+import { Icono } from './Icono'
 import { useEffect, useRef, useState } from 'react'
 import type { ActivoRespuesta, PaginaActivos } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
@@ -60,7 +61,7 @@ export function BuscadorEquipo({ equipo, alElegir }: Props) {
           enfocar.current = true
           setEstado({ tipo: 'cargando' })
           alElegir(null)
-        }}>Cambiar equipo</button>
+        }}><Icono nombre="cambiar" />Cambiar equipo</button>
       </div>
     )
   }
@@ -80,7 +81,7 @@ export function BuscadorEquipo({ equipo, alElegir }: Props) {
           <button type="button" className="boton boton-secundario" onClick={() => {
             setEstado({ tipo: 'cargando' })
             setReintento((anterior) => anterior + 1)
-          }}>Reintentar búsqueda</button>
+          }}><Icono nombre="sincronizar" />Reintentar búsqueda</button>
         </div>
       )}
       {estado.tipo === 'lista' && (

@@ -1,3 +1,5 @@
+import { Icono } from './Icono'
+import { MarcaSigem } from './MarcaSigem'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import type { RegistroSolicitud, Rol, UsuarioSesion } from '../../backend/src/dominio'
@@ -89,8 +91,8 @@ export function Registro() {
   return (
     <main className="pantalla-login">
       <div className="presentacion">
-        <p className="identidad"><span className="marca" aria-hidden="true">A</span> Manufacturas Andina</p>
-        <p className="titulo-presentacion">Gestión de mantenimiento</p>
+        <MarcaSigem />
+        <p className="titulo-presentacion">Sistema Gestor de Mantenimiento</p>
       </div>
       <section className="panel-login" aria-labelledby="titulo-registro">
         <h1 id="titulo-registro">Crear cuenta</h1>
@@ -116,7 +118,10 @@ export function Registro() {
                   required minLength={8} maxLength={72} aria-describedby="registro-password-ayuda"
                   value={password} onChange={(evento) => setPassword(evento.target.value)} />
                 <button className="boton boton-secundario" type="button" aria-controls="registro-password"
-                  onClick={() => setVisible(!visible)}>{visible ? 'Ocultar' : 'Mostrar'}</button>
+                  onClick={() => setVisible(!visible)}>
+                  <Icono nombre={visible ? 'ocultar' : 'ver'} />
+                  {visible ? 'Ocultar' : 'Mostrar'}
+                </button>
               </div>
               <p className="ayuda" id="registro-password-ayuda">Usa al menos 8 caracteres.</p>
             </div>
@@ -130,11 +135,13 @@ export function Registro() {
             </div>
           </fieldset>
           <button className="boton boton-primario" type="submit" disabled={enviando}>
+            <Icono nombre="cuenta" />
             {enviando ? 'Creando cuenta…' : 'Crear cuenta'}
           </button>
         </form>
         <p className="enlace-cuenta">
-          <Link to={sesionActiva ? '/equipos' : '/login'}>
+          <Link className="enlace-con-icono" to={sesionActiva ? '/equipos' : '/login'}>
+            <Icono nombre="anterior" />
             {sesionActiva ? 'Volver a equipos' : 'Volver a iniciar sesión'}
           </Link>
         </p>

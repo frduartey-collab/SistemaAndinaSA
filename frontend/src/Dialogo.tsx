@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { Icono } from './Icono'
+import { useId, useLayoutEffect, useRef, type ReactNode } from 'react'
 
 type PropsDialogo = {
   titulo: string
@@ -13,12 +14,18 @@ export function Dialogo({ titulo, ocupado = false, amplio = false, alCerrar, chi
   const encabezado = useRef<HTMLHeadingElement>(null)
   const tituloId = useId()
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialogo = ref.current
     if (!dialogo) return
+    const origen = document.activeElement
     dialogo.showModal()
     encabezado.current?.focus()
-    return () => dialogo.close()
+    return () => {
+      dialogo.close()
+      if (origen instanceof HTMLElement && origen.isConnected) {
+        origen.focus({ preventScroll: true })
+      }
+    }
   }, [])
 
   return (
@@ -40,7 +47,7 @@ export function Dialogo({ titulo, ocupado = false, amplio = false, alCerrar, chi
           disabled={ocupado}
           onClick={alCerrar}
         >
-          ×
+          <Icono nombre="cerrar" />
         </button>
       </div>
       {children}
