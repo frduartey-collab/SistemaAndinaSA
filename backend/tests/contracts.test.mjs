@@ -8,10 +8,11 @@ const root = new URL('../../', import.meta.url);
 const read = file => readFileSync(new URL(file, root), 'utf8');
 const auth = parse(read('docs/sprint-1/02-contratos-api/auth.openapi.yaml'));
 const activos = parse(read('docs/sprint-1/02-contratos-api/activos.openapi.yaml'));
+const fallas = parse(read('docs/sprint-1/02-contratos-api/fallas.openapi.yaml'));
 
-test('CONTRATOS: las ocho rutas del código coinciden con OpenAPI', () => {
+test('CONTRATOS: las rutas del código coinciden con OpenAPI', () => {
   const methods = ['get', 'post', 'patch', 'delete', 'put'];
-  const expected = [auth, activos].flatMap(doc => Object.entries(doc.paths).flatMap(([path, ops]) => Object.keys(ops).filter(m => methods.includes(m)).map(m => m.toUpperCase() + ' ' + path))).sort();
+  const expected = [auth, activos, fallas].flatMap(doc => Object.entries(doc.paths).flatMap(([path, ops]) => Object.keys(ops).filter(m => methods.includes(m)).map(m => m.toUpperCase() + ' ' + path))).sort();
   const actual = [...read('backend/src/app.ts').matchAll(/app\.(get|post|patch|delete|put)\('([^']+)'/g)]
     .map(([,method,path]) => method.toUpperCase() + ' ' + path.replace('/:id', '/{id}')).sort();
   assert.deepEqual(actual, expected);
@@ -22,6 +23,7 @@ test('CONTRATOS: enums de dominio y YAML coinciden', () => {
     const match = new RegExp('export type ' + name + ' = ([^;]+);').exec(source);
     const values = [...match[1].matchAll(/'([^']+)'/g)].map(item => item[1]);
     assert.deepEqual(values, doc.components.schemas[name].enum);
+    if (name === 'CriticidadEquipo') assert.deepEqual(values, fallas.components.schemas[name].enum);
   }
 });
 test('CONTRATOS: requeridos de auth, equipo y rechazo de campos inesperados', () => {

@@ -16,7 +16,7 @@ Al arrancar, el servidor ejecuta seed() de forma idempotente: crea el usuario SU
 
 La base por defecto es `backend/data/app.db`, abierta mediante db.ts y better-sqlite3. Para seguir usando la base de la versión anterior, define `DB_PATH=backend/data/andina.sqlite` en .env antes del arranque: así conservas usuarios, sesiones, activos y auditoría en el archivo existente.
 
-`npm run seed` permite crear otros usuarios de demostración con SEED_RUT, SEED_PASSWORD y SEED_ROL opcionales en .env. Sus valores por defecto son 11111111-1, admin123 y SUPERVISOR; repetirlo no reemplaza un usuario existente. Los roles admitidos son SUPERVISOR, TECNICO, TRABAJADOR, BODEGA y JEFATURA. BODEGA puede autenticarse, pero no acceder a activos. No hay un endpoint de creación de usuarios en HU-01/HU-02.
+`npm run seed` permite crear otros usuarios de demostración con SEED_RUT, SEED_PASSWORD y SEED_ROL opcionales en .env. Sus valores por defecto son 11111111-1, admin123 y SUPERVISOR; repetirlo no reemplaza un usuario existente. Los roles admitidos son SUPERVISOR, TECNICO, TRABAJADOR, BODEGA y JEFATURA. BODEGA puede autenticarse, pero no acceder a activos.
 
 **Credencial DEMO local:** 11111111-1 / admin123. Es una cuenta de desarrollo conocida; no representa una credencial de producción. JWT_SECRET permanece vacío en .env.example y debe configurarse. .env, claves y bases de datos quedan excluidos de Git.
 
@@ -36,6 +36,14 @@ Desde **Equipos** puedes buscar, filtrar y consultar fichas. SUPERVISOR y JEFATU
 
 El frontend usa React, TypeScript, React Router y Vite. En desarrollo, Vite reenvía las peticiones /api/ a la API local del puerto 3000. Para revisar la compilación, ejecuta npm run build dentro de frontend.
 
+## Registro de cuentas y fallas
+
+Desde el login, **¿No tienes cuenta? Regístrate** permite crear una cuenta de Técnico o Trabajador con RUT, nombre y contraseña. Al terminar, la interfaz vuelve al login con el RUT rellenado. Con una sesión de Supervisor o Jefatura, **Crear cuenta** permite dar de alta a Bodega. Solo Jefatura puede asignar Supervisor o Jefatura.
+
+En **Fallas**, busca un equipo por código o nombre, describe el problema y guarda el reporte. La criticidad del equipo sugiere una prioridad. Puedes seleccionar otra prioridad antes de guardar. Técnico y Trabajador ven sus propios reportes. Supervisor y Jefatura ven todos y Bodega tiene el acceso restringido.
+
+La selección de hasta tres fotos es una simulación de interfaz. El API guarda el reporte con el autor de la sesión, la prioridad, la fecha y el estado Reportada. Reinicia el proceso de la API después de actualizar para que SQLite cree la tabla fallas.
+
 ## Verificación
 
 - `npm run validate:contracts`: estructura OpenAPI, referencias y schemas.
@@ -51,6 +59,7 @@ Envía el token del login en Authorization como Bearer seguido de un espacio y e
 | Método | Ruta | Acceso |
 | --- | --- | --- |
 | POST | /auth/login | Público, RUT y contraseña |
+| POST | /auth/register | Técnico/Trabajador públicos; roles reservados con autorización |
 | GET | /auth/me | Sesión válida |
 | POST | /auth/logout | Sesión válida; revocación inmediata |
 | GET | /activos | SUPERVISOR, JEFATURA, TECNICO y TRABAJADOR |
@@ -58,6 +67,8 @@ Envía el token del login en Authorization como Bearer seguido de un espacio y e
 | GET | /activos/{id} | SUPERVISOR, JEFATURA, TECNICO y TRABAJADOR |
 | PATCH | /activos/{id} | SUPERVISOR y JEFATURA |
 | DELETE | /activos/{id} | SUPERVISOR y JEFATURA, baja lógica |
+| POST | /fallas | SUPERVISOR, JEFATURA, TECNICO y TRABAJADOR |
+| GET | /fallas | Todos para SUPERVISOR/JEFATURA; propios para TECNICO/TRABAJADOR |
 
 BODEGA recibe 403 SIN_PERMISO en las cinco operaciones de activos. Una petición sin sesión válida recibe 401 NO_AUTORIZADO.
 
