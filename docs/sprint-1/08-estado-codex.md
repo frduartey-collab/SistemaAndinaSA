@@ -41,4 +41,12 @@ Se conservaron las 40 pruebas previas, adaptadas a bcrypt, better-sqlite3 y al n
 
 ## Pendientes de cierre formal
 
-Peer review humano, aceptación del PO y firmas siguen pendientes; las actas son borradores SIN FIRMA. No se declaran 8 SP aceptados ni RNF productivos acreditados. Frontend funcional pendiente; HU-03/HU-04/HU-05 permanecen como backlog de Sprint 2.
+Peer review humano, aceptación del PO y firmas siguen pendientes; las actas son borradores SIN FIRMA. No se declaran 8 SP aceptados ni RNF productivos acreditados. HU-03/HU-04/HU-05 permanecen como backlog de Sprint 2.
+
+## Frontend · etapa de interfaz completada
+
+La carpeta frontend contiene la interfaz React de HU-01 y HU-02. El login usa RUT y contraseña. El contexto comprueba la sesión al recargar, controla el vencimiento y revoca el token al cerrar sesión. El catálogo aplica la matriz vigente de permisos, muestra 20 equipos por página y permite buscar por código o nombre y filtrar por criticidad y estado.
+
+La ficha consulta el activo por ID. El formulario crea y edita mediante la API, conserva el código al editar y muestra los errores sin perder los datos escritos. Si la sesión vence mientras el usuario prepara cambios, puede recuperar el borrador en la misma pestaña al volver a ingresar con la misma cuenta. La confirmación de baja muestra el código y el nombre y explica que ese código sigue reservado.
+
+Verificación local: npm run build del frontend y validación de los dos contratos OpenAPI. En Chromium, con una base SQLite temporal, se comprobó la redirección sin sesión, el login, los filtros y paginación, el detalle, la creación, el código duplicado, la edición, la recuperación del borrador tras revocar una sesión, la baja y el cierre de sesión. Se verificaron los cinco roles y el ancho móvil de 390 px. La API se ejecuta en localhost:3000 y el frontend en localhost:5173.

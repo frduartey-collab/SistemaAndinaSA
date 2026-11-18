@@ -1,6 +1,6 @@
 # Manufacturas Andina: Sprint 1
 
-Backend Node.js + Express + TypeScript estricto y SQLite. Alcance: HU-01 (RF-01, 3 SP) y HU-02 (RF-02, 5 SP). El frontend funcional está fuera del Sprint 1; se incluyen tres wireframes.
+Backend Node.js + Express + TypeScript estricto y SQLite. Alcance: HU-01 (RF-01, 3 SP) y HU-02 (RF-02, 5 SP). El Sprint 1 entregó el backend y tres wireframes. La etapa de interfaz añade el frontend funcional de autenticación y activos en la carpeta frontend.
 
 ## Preparación local
 
@@ -19,6 +19,22 @@ La base por defecto es `backend/data/app.db`, abierta mediante db.ts y better-sq
 `npm run seed` permite crear otros usuarios de demostración con SEED_RUT, SEED_PASSWORD y SEED_ROL opcionales en .env. Sus valores por defecto son 11111111-1, admin123 y SUPERVISOR; repetirlo no reemplaza un usuario existente. Los roles admitidos son SUPERVISOR, TECNICO, TRABAJADOR, BODEGA y JEFATURA. BODEGA puede autenticarse, pero no acceder a activos. No hay un endpoint de creación de usuarios en HU-01/HU-02.
 
 **Credencial DEMO local:** 11111111-1 / admin123. Es una cuenta de desarrollo conocida; no representa una credencial de producción. JWT_SECRET permanece vacío en .env.example y debe configurarse. .env, claves y bases de datos quedan excluidos de Git.
+
+## Interfaz web local
+
+Mantén la API en marcha en el puerto 3000. Abre una segunda terminal en IntelliJ y usa la misma versión de Node 24 que usaste para iniciar el servidor.
+
+```sh
+cd /Users/francoduarte/Desktop/ProyectoAndinaSA/frontend
+npm ci
+npm run dev
+```
+
+Ejecuta npm ci al preparar el frontend por primera vez o cuando cambien las dependencias. Abre [Andina en el navegador](http://127.0.0.1:5173). En una base de demostración nueva, ingresa con el RUT 11111111-1 y la contraseña admin123. Si ya tienes un usuario, usa sus credenciales.
+
+Desde **Equipos** puedes buscar, filtrar y consultar fichas. SUPERVISOR y JEFATURA también pueden crear, editar y confirmar una baja. TECNICO y TRABAJADOR tienen acceso de lectura, y BODEGA ve la pantalla de acceso restringido. La baja retira el equipo de la lista y conserva su código reservado.
+
+El frontend usa React, TypeScript, React Router y Vite. En desarrollo, Vite reenvía las peticiones /api/ a la API local del puerto 3000. Para revisar la compilación, ejecuta npm run build dentro de frontend.
 
 ## Verificación
 
