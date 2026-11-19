@@ -16,7 +16,7 @@ export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_I
   | 'DEMASIADOS_INTENTOS' | 'DATOS_INVALIDOS' | 'NO_AUTORIZADO' | 'SIN_PERMISO'
   | 'CODIGO_FORMATO_INVALIDO' | 'CODIGO_DUPLICADO' | 'ACTIVO_NO_ENCONTRADO' | 'RUT_DUPLICADO'
   | 'FALLA_NO_ENCONTRADA' | 'ORDEN_DUPLICADA' | 'TECNICO_NO_DISPONIBLE'
-  | 'ORDEN_NO_ENCONTRADA' | 'TRANSICION_ORDEN_INVALIDA';
+  | 'ORDEN_NO_ENCONTRADA' | 'TRANSICION_ORDEN_INVALIDA' | 'ORDEN_YA_CERRADA';
 export interface ErrorRespuesta { codigo: CodigoError; mensaje: string }
 
 export interface ActivoCrearSolicitud {
@@ -91,7 +91,24 @@ export interface OrdenCrearSolicitud {
   fecha_limite: string;
 }
 
-export interface OrdenEstadoSolicitud { estado: EstadoOrden }
+export interface OrdenEstadoSolicitud { estado: 'EN_PROGRESO' }
+
+export interface OrdenCierreSolicitud {
+  diagnostico: string;
+  solucion: string;
+  duracion_minutos: number;
+  repuestos_usados?: string;
+}
+
+export interface IntervencionRespuesta {
+  orden_id: number;
+  autor_id: number;
+  diagnostico: string;
+  solucion: string;
+  duracion_minutos: number;
+  repuestos_usados: string | null;
+  registrada_en: string;
+}
 
 export interface OrdenRespuesta extends OrdenCrearSolicitud {
   id: number;
@@ -101,6 +118,10 @@ export interface OrdenRespuesta extends OrdenCrearSolicitud {
   descripcion: string;
   prioridad: CriticidadEquipo;
   estado: EstadoOrden;
+}
+
+export interface OrdenDetalleRespuesta extends OrdenRespuesta {
+  intervencion: IntervencionRespuesta | null;
 }
 
 interface PaginacionOrdenes { page: number; size: number }

@@ -8,7 +8,11 @@ import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
 import { rutValido } from './rut.js';
 import { solicitud, idPositivo, consultaActivos, consultaFallas, consultaOrdenes, consultaTecnicos } from './validacion.js';
-import type { LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta, ActivoCrearSolicitud, ActivoActualizarSolicitud, FallaCrearSolicitud, OrdenCrearSolicitud, OrdenEstadoSolicitud, Rol } from './dominio.js';
+import type {
+  LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta,
+  ActivoCrearSolicitud, ActivoActualizarSolicitud, FallaCrearSolicitud,
+  OrdenCierreSolicitud, OrdenCrearSolicitud, OrdenEstadoSolicitud, Rol,
+} from './dominio.js';
 
 interface Options {
   secret: string;
@@ -238,11 +242,23 @@ export async function crearAplicacion(options: Options) {
     const { id, rol } = (res.locals as Context).usuario;
     res.json(ordenes.listar(consultaOrdenes(req.query), administrar(rol) ? undefined : id));
   });
+  app.get('/ordenes/:id', autenticado, accesoOrdenes, (req, res) => {
+    const ordenId = idPositivo(req.params.id);
+    const { id, rol } = (res.locals as Context).usuario;
+    res.json(ordenes.detalle(ordenId, administrar(rol) ? undefined : id));
+  });
   app.patch('/ordenes/:id/estado', autenticado, accesoOrdenes, (req, res) => {
     const ordenId = idPositivo(req.params.id);
     const input = solicitud<OrdenEstadoSolicitud>('ordenes', 'OrdenEstadoSolicitud', req.body);
     const { id, rol } = (res.locals as Context).usuario;
     res.json(ordenes.cambiarEstado(ordenId, input.estado, id, administrar(rol), now()));
+  });
+  app.put('/ordenes/:id/cierre', autenticado, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    if (rol !== 'TECNICO') throw new ErrorAPI(403, 'SIN_PERMISO', 'El cierre corresponde al técnico asignado.');
+    const ordenId = idPositivo(req.params.id);
+    const input = solicitud<OrdenCierreSolicitud>('ordenes', 'OrdenCierreSolicitud', req.body);
+    res.json(ordenes.cerrar(ordenId, input, id, now()));
   });
 
   app.use((_req, res) => { res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'La ruta no existe.' }); });

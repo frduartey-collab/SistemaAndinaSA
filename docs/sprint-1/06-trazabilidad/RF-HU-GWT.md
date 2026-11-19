@@ -14,6 +14,6 @@ Fuente: [Informe del sistema](../../referencias/Informe_del_sistema.pdf), §3.1/
 | RNF-07: hash y acceso restringido | HU-01 | HU01-05/07/10/12 | Errores de acceso y Bearer | bcrypt 12, compatibilidad scrypt, jsonwebtoken, revocación y SQLite 0600; cinco fallos por RUT en cinco minutos | Login |
 | RF-03 | HU-03 / propuesta 5 | Pendiente Sprint 2 | Pendiente | No implementado | Pendiente |
 | RF-04 | HU-04 / propuesta 8 | Pendiente Sprint 2 | Pendiente | No implementado | Pendiente |
-| RF-05 | HU-05 / propuesta 8 | Pendiente Sprint 2 | Pendiente | No implementado | Pendiente |
+| RF-05, RNF-08 | HU-05 / propuesta 8 | [HU05-01..HU05-08](../04-criterios-gwt/matriz-GWT-HU05.md) | ordenes.openapi.yaml, cierre y detalle de OT | Cierre atómico, intervención única y consulta histórica | Formulario de cierre y resumen de intervención |
 
-Las matrices de 04-criterios-gwt incluyen cada Given/When/Then y su RF. Las pruebas están en backend/tests; se adaptan las existentes y se cubren los casos esenciales de autenticación y activos con supertest. Estado de ejecución en 08-estado-codex.md. No se incluyen transiciones generales de estado de HU-04/HU-05 ni se acredita firma del PO.
+Las matrices de 04-criterios-gwt incluyen cada Given/When/Then y su RF. Las pruebas están en backend/tests; se adaptan las existentes y se cubren los casos esenciales de autenticación y activos con supertest. Estado de ejecución en 08-estado-codex.md. El cierre formal de Sprint 1 sigue pendiente de la firma del PO.

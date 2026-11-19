@@ -474,6 +474,12 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 .lista-ordenes .paginacion, .selector-orden .paginacion { padding-inline: 0; }
 
 .campos-orden { display: grid; gap: 1rem; }
+.formulario-intervencion { margin-top: 1rem; }
+.formulario-intervencion input[type="number"] { max-width: 13rem; }
+.intervencion-datos { padding-top: 1rem; border-top: 1px solid var(--borde); }
+.intervencion-texto { grid-column: 1 / -1; }
+.intervencion-texto dd { white-space: pre-wrap; }
+.intervencion-ausente { margin-top: 1rem; color: var(--suave); }
 
 .selector-orden {
   padding: 0.65rem;

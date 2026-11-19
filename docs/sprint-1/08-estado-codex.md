@@ -86,3 +86,11 @@ Trabajador inicia en Mi inicio con acceso a Reportar nueva falla y hasta cinco r
 Técnico inicia en Órdenes de trabajo pendientes, que incluye sus asignaciones pendientes y en progreso. Puede avanzar sus estados y consultar también sus órdenes cerradas desde Ver todas mis órdenes. GET /ordenes admite el filtro opcional solo_abiertas, aplicado antes de la paginación. Los controles existentes de HU-04 rechazan las operaciones de Trabajador con 403 SIN_PERMISO e impiden asignarle una orden.
 
 Validación. Los cuatro contratos OpenAPI validaron 15 operaciones. Pasaron 53 pruebas de backend y la compilación de React. Chromium verificó el inicio, el menú, la ruta directa y el flujo de cierre por rol con SQLite en memoria.
+
+## Registro de intervenciones (HU-05)
+
+El técnico asignado usa el formulario de cierre en una orden en progreso para registrar diagnóstico, solución, minutos y repuestos opcionales en texto libre. PUT /ordenes/{id}/cierre guarda una intervención por orden y registra el cierre y la auditoría en la misma transacción. Un reintento con los mismos datos devuelve el registro existente. Si los datos difieren, la API devuelve 409 y conserva la intervención original.
+
+GET /ordenes/{id} devuelve el detalle para el técnico asignado, Supervisor y Jefatura. Después del cierre, la interfaz abre el resumen de solo lectura. Las órdenes históricas siguen visibles y muestran que se cerraron antes del registro de intervenciones. SQLite protege las órdenes cerradas y sus intervenciones contra edición y borrado. PATCH /ordenes/{id}/estado conserva el paso a EN_PROGRESO. Los repuestos quedan documentados para la futura integración con Inventario.
+
+Pasaron 57 pruebas de backend y la compilación de React. La validación cubrió 17 operaciones OpenAPI y el flujo en Chromium usó SQLite en memoria. Se verificaron la recuperación de un error de red, el bloqueo de otro envío, la consulta del cierre con permisos y la visualización de una orden histórica.

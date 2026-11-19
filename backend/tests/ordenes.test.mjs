@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import request from 'supertest';
 import { crearAplicacion } from '../dist/app.js';
 import { Datos } from '../dist/datos.js';
+import { Fallas } from '../dist/fallas.js';
 import { hashPassword } from '../dist/seguridad.js';
 import { rutValido, normalizarRut } from '../dist/rut.js';
 import { esquema } from '../dist/validacion.js';
@@ -11,8 +12,9 @@ import { esquema } from '../dist/validacion.js';
 const AHORA = Date.parse('2026-11-19T01:30:00Z');
 const clave = 'Andina-Prueba-Ordenes!';
 const hash = hashPassword(clave);
+const cierre = { diagnostico: 'Rodamiento desgastado', solucion: 'Se reemplazó el rodamiento', duracion_minutos: 25 };
 
-async function fixture(t) {
+async function fixture(t, preparar) {
   const datos = new Datos();
   const personas = {};
   for (const [clavePersona, rut, rol, activo] of [
@@ -29,6 +31,7 @@ async function fixture(t) {
   const equipo = datos.crear({
     codigo: 'EQ-0140', nombre: 'Prensa', ubicacion: 'Nave', criticidad: 'ALTA',
   }, personas.supervisor.id, AHORA);
+  preparar?.(datos, personas, equipo);
   const backend = await crearAplicacion({
     secret: 'secreto-de-pruebas-local-HU04-sintetico', datos, now: () => AHORA,
   });
@@ -118,12 +121,12 @@ test('Listado y cambios de estado se limitan al técnico asignado o un administr
   }
   const oculto = await f.api.patch(url).set('Authorization', otro).send({ estado: 'EN_PROGRESO' }).expect(404);
   assert.equal(oculto.body.codigo, 'ORDEN_NO_ENCONTRADA');
-  await f.api.patch(url).set('Authorization', tecnico).send({ estado: 'CERRADA' }).expect(409);
+  await f.api.patch(url).set('Authorization', tecnico).send({ estado: 'CERRADA' }).expect(400);
   await f.api.patch(url).set('Authorization', tecnico).send({ estado: 'EN_PROGRESO' }).expect(200);
   await f.api.patch(url).set('Authorization', tecnico).send({ estado: 'EN_PROGRESO' }).expect(200);
-  const cerrada = await f.api.patch(url).set('Authorization', tecnico).send({ estado: 'CERRADA' }).expect(200);
+  const cerrada = await f.api.put('/ordenes/' + orden.body.id + '/cierre').set('Authorization', tecnico).send(cierre).expect(200);
   assert.equal(cerrada.body.estado, 'CERRADA');
-  await f.api.patch(url).set('Authorization', admin).send({ estado: 'PENDIENTE' }).expect(409);
+  await f.api.patch(url).set('Authorization', admin).send({ estado: 'EN_PROGRESO' }).expect(409);
   assert.equal(f.datos.db.prepare("SELECT count(*) AS n FROM auditoria WHERE accion = 'ORDEN_ESTADO_EN_PROGRESO'").get().n, 1);
 });
 
@@ -172,11 +175,137 @@ test('Las órdenes abiertas se filtran antes de paginar y respetan al técnico a
   assert.equal(enProgreso.body.items[0].estado, 'EN_PROGRESO');
   assert.equal(enProgreso.body.total, 2);
 
-  await f.api.patch(url).set('Authorization', tecnico).send({ estado: 'CERRADA' }).expect(200);
+  await f.api.put('/ordenes/' + ultima + '/cierre').set('Authorization', tecnico).send(cierre).expect(200);
   const primera = await f.api.get(abiertas).set('Authorization', tecnico).expect(200);
   assert.deepEqual(primera.body.items.map(({ id }) => id), [pendiente]);
   assert.equal(primera.body.total, 1);
   assert.deepEqual((await f.api.get(abiertas).set('Authorization', otro).expect(200)).body.items.map(({ id }) => id), [ajena]);
   assert.equal((await f.api.get('/ordenes?solo_abiertas=false').set('Authorization', tecnico).expect(200)).body.total, 2);
   await f.api.get('/ordenes?solo_abiertas=1').set('Authorization', tecnico).expect(400);
+});
+
+
+async function crearOrden(f) {
+  const admin = await f.sesion('supervisor');
+  const tecnico = await f.sesion('tecnico');
+  const falla = await f.falla(tecnico);
+  const { body } = await f.api.post('/ordenes').set('Authorization', admin)
+    .send({ falla_id: falla.id, tecnico_id: f.personas.tecnico.id, fecha_limite: '2026-11-20' }).expect(201);
+  return { id: body.id, ruta: '/ordenes/' + body.id, admin, tecnico };
+}
+
+test('El detalle respeta permisos y solo el técnico asignado puede cerrar una orden en progreso', async (t) => {
+  const f = await fixture(t);
+  const { id, ruta, admin, tecnico } = await crearOrden(f);
+  const otro = await f.sesion('otro');
+  const trabajador = await f.sesion('trabajador');
+  const put = (token, body = cierre) => f.api.put(ruta + '/cierre').set('Authorization', token).send(body);
+
+  await f.api.get(ruta).expect(401);
+  await f.api.put(ruta + '/cierre').send(cierre).expect(401);
+  await f.api.get(ruta).set('Authorization', trabajador).expect(403);
+  await f.api.get(ruta).set('Authorization', otro).expect(404);
+  await put(trabajador).expect(403);
+  await put(admin).expect(403);
+  await put(otro).expect(404);
+  const detalle = await f.api.get(ruta).set('Authorization', tecnico).expect(200);
+  assert(esquema('ordenes', 'OrdenDetalleRespuesta')(detalle.body));
+  assert.equal(detalle.body.intervencion, null);
+  assert.equal((await put(tecnico).expect(409)).body.codigo, 'TRANSICION_ORDEN_INVALIDA');
+  await f.api.patch(ruta + '/estado').set('Authorization', admin).send({ estado: 'EN_PROGRESO' }).expect(200);
+  assert.throws(
+    () => f.datos.db.prepare("UPDATE ordenes_trabajo SET estado = 'CERRADA' WHERE id = ?").run(id),
+    /requiere una intervención/,
+  );
+  for (const invalido of [
+    { diagnostico: '   ' }, { solucion: '' }, { duracion_minutos: 0 }, { duracion_minutos: 1.5 },
+    { duracion_minutos: Number.MAX_SAFE_INTEGER + 1 }, { repuestos_usados: null },
+    { repuestos_usados: 'x'.repeat(2001) }, { diagnostico: 'Mal\u0000texto' }, { cantidad: 1 },
+  ]) {
+    await put(tecnico, { ...cierre, ...invalido }).expect(400);
+  }
+
+  const { body } = await put(tecnico, { ...cierre, repuestos_usados: '  Un rodamiento  ' }).expect(200);
+  assert(esquema('ordenes', 'OrdenDetalleRespuesta')(body));
+  assert.equal(body.estado, 'CERRADA');
+  assert.deepEqual(body.intervencion, {
+    orden_id: id, autor_id: f.personas.tecnico.id, ...cierre,
+    repuestos_usados: 'Un rodamiento', registrada_en: new Date(AHORA).toISOString(),
+  });
+  assert.deepEqual((await f.api.get(ruta).set('Authorization', admin).expect(200)).body, body);
+});
+
+test('Cierre concurrente e idempotente guarda una intervención y un único evento de auditoría', async (t) => {
+  const f = await fixture(t);
+  const { id, ruta, tecnico } = await crearOrden(f);
+  const put = (body) => f.api.put(ruta + '/cierre').set('Authorization', tecnico).send(body);
+  await f.api.patch(ruta + '/estado').set('Authorization', tecnico).send({ estado: 'EN_PROGRESO' }).expect(200);
+  const [primera, segunda] = await Promise.all([
+    put(cierre).expect(200),
+    put({ ...cierre, diagnostico: ' ' + cierre.diagnostico, repuestos_usados: '   ' }).expect(200),
+  ]);
+  assert.deepEqual(segunda.body, primera.body);
+  assert.equal(segunda.body.intervencion.repuestos_usados, null);
+  const conflicto = await put({ ...cierre, duracion_minutos: 26 }).expect(409);
+  assert.equal(conflicto.body.codigo, 'ORDEN_YA_CERRADA');
+  assert.equal(f.datos.db.prepare('SELECT count(*) AS n FROM intervenciones WHERE orden_id = ?').get(id).n, 1);
+  assert.equal(f.datos.db.prepare("SELECT count(*) AS n FROM auditoria WHERE accion = 'ORDEN_CERRADA_CON_INTERVENCION'").get().n, 1);
+  assert.throws(() => f.datos.db.prepare('UPDATE intervenciones SET duracion_minutos = 26 WHERE orden_id = ?').run(id), /inmutable/);
+  assert.throws(() => f.datos.db.prepare('DELETE FROM intervenciones WHERE orden_id = ?').run(id), /inmutable/);
+});
+
+test('Un error antes de confirmar el cierre revierte la intervención y permite reintentar', async (t) => {
+  const f = await fixture(t);
+  const { id, ruta, tecnico } = await crearOrden(f);
+  await f.api.patch(ruta + '/estado').set('Authorization', tecnico).send({ estado: 'EN_PROGRESO' }).expect(200);
+  f.datos.db.exec(`
+    CREATE TRIGGER bloquear_auditoria_cierre BEFORE INSERT ON auditoria
+    WHEN NEW.accion = 'ORDEN_CERRADA_CON_INTERVENCION'
+    BEGIN SELECT RAISE(ABORT, 'Fallo de auditoría simulado'); END;
+  `);
+  await f.api.put(ruta + '/cierre').set('Authorization', tecnico).send(cierre).expect(500);
+  assert.equal(f.datos.db.prepare('SELECT count(*) AS n FROM intervenciones WHERE orden_id = ?').get(id).n, 0);
+  const { body } = await f.api.get(ruta).set('Authorization', tecnico).expect(200);
+  assert.equal(body.estado, 'EN_PROGRESO');
+  assert.equal(body.intervencion, null);
+
+  f.datos.db.exec('DROP TRIGGER bloquear_auditoria_cierre');
+  await f.api.put(ruta + '/cierre').set('Authorization', tecnico).send(cierre).expect(200);
+});
+
+test('Una orden histórica cerrada conserva su estado sin inventar una intervención', async (t) => {
+  let id;
+  const f = await fixture(t, (datos, personas, equipo) => {
+    const fallas = new Fallas(datos);
+    const falla = fallas.crear({ equipo_id: equipo.id, descripcion: 'Falla histórica.' }, personas.tecnico.id, AHORA);
+    datos.db.exec(`
+      CREATE TABLE ordenes_trabajo (
+        id INTEGER PRIMARY KEY,
+        falla_id INTEGER NOT NULL UNIQUE REFERENCES fallas(id),
+        tecnico_id INTEGER NOT NULL REFERENCES usuarios(id),
+        fecha_limite TEXT NOT NULL,
+        estado TEXT NOT NULL DEFAULT 'PENDIENTE'
+          CHECK (estado IN ('PENDIENTE', 'EN_PROGRESO', 'CERRADA'))
+      );
+    `);
+    const insercion = datos.db.prepare(`
+      INSERT INTO ordenes_trabajo (falla_id, tecnico_id, fecha_limite, estado)
+      VALUES (?, ?, '2026-11-20', 'CERRADA')
+    `).run(falla.id, personas.tecnico.id);
+    id = Number(insercion.lastInsertRowid);
+  });
+  const admin = await f.sesion('supervisor');
+  const tecnico = await f.sesion('tecnico');
+  const ruta = '/ordenes/' + id;
+
+  const { body } = await f.api.get(ruta).set('Authorization', admin).expect(200);
+  assert(esquema('ordenes', 'OrdenDetalleRespuesta')(body));
+  assert.equal(body.estado, 'CERRADA');
+  assert.equal(body.intervencion, null);
+  const conflicto = await f.api.put(ruta + '/cierre').set('Authorization', tecnico).send(cierre).expect(409);
+  assert.equal(conflicto.body.codigo, 'ORDEN_YA_CERRADA');
+  await f.api.patch(ruta + '/estado').set('Authorization', tecnico).send({ estado: 'EN_PROGRESO' }).expect(409);
+  assert.equal(f.datos.db.prepare('SELECT count(*) AS n FROM intervenciones WHERE orden_id = ?').get(id).n, 0);
+  assert.throws(() => f.datos.db.prepare("UPDATE ordenes_trabajo SET estado = 'PENDIENTE' WHERE id = ?").run(id), /inmutable/);
+  assert.throws(() => f.datos.db.prepare('DELETE FROM ordenes_trabajo WHERE id = ?').run(id), /inmutable/);
 });
