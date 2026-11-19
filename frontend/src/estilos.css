@@ -243,6 +243,7 @@ a.boton { text-decoration: none; }
 }
 
 .filtros-acciones, .paginacion > div, .dialogo-acciones { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.filtros.filtros-inventario { grid-template-columns: minmax(0, 1fr) auto; }
 .resultados { margin-top: 1rem; }
 .total { padding: 0.9rem 1rem; color: var(--suave); font-size: 0.88rem; font-weight: 650; }
 .tabla-contenedor { overflow-x: auto; border-block: 1px solid var(--borde); }
@@ -275,6 +276,11 @@ tbody tr:hover { background: #f6fafd; }
 .operativo { color: #21563a; background: #e2f3e6; }
 
 .acciones-fila { display: flex; gap: 0.4rem; }
+.acciones-repuesto { display: flex; flex-wrap: wrap; gap: 0.4rem; min-width: 12rem; }
+.codigo-repuesto { min-width: 6rem; max-width: 14rem; white-space: normal; overflow-wrap: anywhere; }
+.descripcion-repuesto { margin-top: 0.2rem; font-weight: 400; }
+.stock-repuesto { font-variant-numeric: tabular-nums; }
+.stock-repuesto .insignia { display: flex; width: fit-content; margin-top: 0.3rem; }
 .boton-texto {
   display: inline-flex;
   align-items: center;
@@ -352,7 +358,7 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 @media (max-width: 30rem) {
   .navegacion-sigem { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .enlace-nav { padding-inline: 0.4rem; }
-  .filtros, .campos-equipo, .datos-detalle { grid-template-columns: minmax(0, 1fr); }
+  .filtros, .filtros.filtros-inventario, .campos-equipo, .datos-detalle { grid-template-columns: minmax(0, 1fr); }
 }
 
 
@@ -430,6 +436,24 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 .reporte h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
 .descripcion-falla { margin-top: 0.4rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reportes .paginacion { padding-inline: 0; }
+.acciones-reporte { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.aviso-falla h2 { margin: 0; font-size: 1.08rem; overflow-wrap: anywhere; }
+.detalle-falla { padding: clamp(1rem, 3vw, 1.5rem); }
+.detalle-falla > .ayuda { margin-top: 0.45rem; }
+.detalle-falla > .descripcion-falla { margin-top: 0.9rem; }
+.adjuntos-falla { margin-top: 1.2rem; padding-top: 0.85rem; border-top: 1px solid var(--borde); }
+.adjuntos-falla h3 { margin: 0 0 0.65rem; font-size: 1rem; }
+.galeria-falla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.foto-falla { margin: 0; padding: 0.65rem; border: 1px solid var(--borde); border-radius: 0.55rem; }
+.foto-falla img { display: block; width: 100%; height: auto; max-height: 24rem; object-fit: contain; }
+.foto-falla figcaption { margin-top: 0.35rem; color: var(--suave); font-size: 0.85rem; overflow-wrap: anywhere; }
 
 @media (max-width: 52rem) {
   .modulo-fallas { grid-template-columns: minmax(0, 1fr); }
@@ -445,7 +469,6 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 
 .cabecera-listado-fallas { align-items: baseline; }
 .cabecera-listado-fallas [aria-pressed="true"] { background: var(--acento-suave); border-color: var(--acento); }
-.crear-desde-falla { margin-top: 0.6rem; text-decoration: none; }
 .lista-ordenes { padding: clamp(0.9rem, 3vw, 1.5rem); }
 
 .ordenes-resultados, .opciones-orden { margin: 0; padding: 0; list-style: none; }
@@ -474,6 +497,34 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 .lista-ordenes .paginacion, .selector-orden .paginacion { padding-inline: 0; }
 
 .campos-orden { display: grid; gap: 1rem; }
+.formulario-intervencion { margin-top: 1rem; }
+.formulario-intervencion input[type="number"] { max-width: 13rem; }
+.intervencion-datos { padding-top: 1rem; border-top: 1px solid var(--borde); }
+.intervencion-texto { grid-column: 1 / -1; }
+.intervencion-texto dd { white-space: pre-wrap; }
+.intervencion-ausente { margin-top: 1rem; color: var(--suave); }
+.consumos-intervencion { display: grid; gap: 0.75rem; }
+.consumos-intervencion > legend { margin-bottom: 0.45rem; font-size: 0.875rem; font-weight: 650; }
+.lista-consumos { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.consumo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, 9rem) auto;
+  align-items: start;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: 0.55rem;
+  overflow-wrap: anywhere;
+}
+.consumo > p { align-self: center; }
+.consumo > button { margin-top: 1.67rem; }
+.consumo-selector { display: grid; gap: 0.6rem; }
+.opcion-orden:has(:disabled) { cursor: default; }
+.resumen-consumos { margin: 0; padding-inline-start: 1.2rem; }
+@media (max-width: 30rem) {
+  .consumo { grid-template-columns: minmax(0, 1fr) auto; }
+  .consumo > p { grid-column: 1 / -1; }
+}
 
 .selector-orden {
   padding: 0.65rem;
@@ -506,4 +557,39 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 
 @media (max-width: 30rem) {
   .busqueda-tecnico { grid-template-columns: minmax(0, 1fr); }
+}
+
+.landing-planes { min-height: 100vh; background: linear-gradient(160deg, #e5f1fa, #f1f5f9 45%); }
+.planes-ancho { width: min(63rem, calc(100% - 2rem)); margin-inline: auto; }
+.planes-cabecera { background: white; border-bottom: 1px solid var(--borde); }
+.planes-cabecera .planes-ancho { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.7rem; padding-block: 0.8rem; }
+.planes-contenido { padding-block: clamp(1.6rem, 5vw, 3.5rem); }
+.planes-contenido h1 { font-size: clamp(1.8rem, 5vw, 3.4rem); }
+.planes-intro { margin-top: 0.6rem; color: var(--suave); max-width: 55ch; }
+.planes-tarjetas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.65rem; }
+.planes-tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: clamp(1rem, 4vw, 2rem);
+  border: 1px solid var(--borde);
+  border-radius: 1rem;
+  background: white;
+  box-shadow: 0 0.65rem 1.6rem #0b335412;
+}
+.planes-empresa { border-color: #70a8c6; border-top: 4px solid var(--acento); }
+.planes-icono { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 0.65rem; background: #e7f2fa; color: var(--acento); }
+.planes-empresa .planes-icono { background: #0b3354; color: #c5ebff; }
+.planes-descripcion, .planes-arranque { color: var(--suave); }
+.planes-precio { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.45rem; margin-top: 0.3rem; }
+.planes-precio strong { font-size: clamp(1.75rem, 4vw, 2.5rem); line-height: 1.15; }
+.planes-arranque, .planes-nota { font-size: 0.9rem; }
+.planes-lista { display: grid; gap: 0.55rem; list-style: none; margin: 0.4rem 0; padding: 0; }
+.planes-lista li { display: flex; align-items: flex-start; gap: 0.5rem; }
+.planes-lista .icono { margin-top: 0.2rem; color: var(--acento); }
+.planes-futuras { flex: 1; border-top: 1px solid var(--borde); padding-top: 0.7rem; color: var(--suave); }
+.planes-futuras h3 { margin: 0; font-size: 0.9rem; color: var(--tinta); }
+.planes-nota { margin-top: 1rem; color: var(--suave); }
+@media (max-width: 44rem) {
+  .planes-tarjetas { grid-template-columns: minmax(0, 1fr); }
 }

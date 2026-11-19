@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: Manufacturas Andina — Reporte de fallas
-  version: 0.1.0
+  version: 0.2.0
   description: |
     HU-03. SUPERVISOR, JEFATURA, TECNICO y TRABAJADOR pueden reportar en equipos
     vigentes. Supervisor y Jefatura consultan todos los reportes. Técnico y
-    Trabajador consultan los propios. BODEGA no accede. Las fotografías se
-    simulan en la interfaz y quedan fuera del cuerpo de esta API.
+    Trabajador consultan los propios. BODEGA no accede. La evidencia fotográfica
+    y los avisos a la supervisión se guardan junto al reporte.
 security:
   - bearerAuth: []
 paths:
@@ -17,6 +17,9 @@ paths:
       description: |
         El servidor asigna el usuario de la sesión, fecha y estado REPORTADA.
         Si no se envía prioridad, se usa la criticidad actual del equipo.
+        Acepta hasta tres fotos de 5 MiB cada una. El cuerpo JSON admite hasta
+        21 MiB. La falla, sus fotos y un aviso para cada Supervisor y Jefatura
+        activos se guardan en una sola transacción.
       requestBody:
         required: true
         content:
@@ -73,6 +76,56 @@ paths:
           $ref: "#/components/responses/NoAutorizado"
         "403":
           $ref: "#/components/responses/SinPermiso"
+  /fallas/{id}:
+    get:
+      operationId: obtenerFalla
+      summary: Obtener una falla visible y los metadatos de sus fotos
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      responses:
+        "200":
+          description: Detalle y lista de fotografías, vacía cuando no hay adjuntos.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FallaDetalleRespuesta" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: FALLA_NO_ENCONTRADA. La falla no existe o no es visible para el usuario.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  /fallas/{id}/fotos/{fotoId}:
+    get:
+      operationId: obtenerFotoFalla
+      summary: Obtener los bytes de una foto de una falla visible
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+        - { name: fotoId, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      responses:
+        "200":
+          description: Imagen con el tipo MIME validado durante la subida.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: FOTO_NO_ENCONTRADA. La foto no pertenece a la falla indicada o no es visible para el usuario.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
 components:
   securitySchemes:
     bearerAuth:
@@ -151,9 +204,42 @@ components:
             pattern: '\u0000'
         prioridad:
           $ref: "#/components/schemas/CriticidadEquipo"
-    FallaRespuesta:
+        fotos:
+          type: array
+          maxItems: 3
+          items: { $ref: "#/components/schemas/FotoFallaSolicitud" }
+    TipoFotoFalla:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    NombreFotoFalla:
+      type: string
+      minLength: 1
+      maxLength: 180
+      pattern: '\S'
+      not: { pattern: '[\u0000-\u001f\u007f/\\]' }
+    FotoFallaSolicitud:
       type: object
       additionalProperties: false
+      required: [nombre, tipo, contenido_base64]
+      properties:
+        nombre: { $ref: "#/components/schemas/NombreFotoFalla" }
+        tipo: { $ref: "#/components/schemas/TipoFotoFalla" }
+        contenido_base64:
+          type: string
+          minLength: 4
+          maxLength: 6990508
+          contentEncoding: base64
+          description: Base64 canónico con relleno. Los bytes decodificados deben coincidir con la firma MIME y ocupar como máximo 5242880 bytes.
+    FotoFallaResumen:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, tipo]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        nombre: { $ref: "#/components/schemas/NombreFotoFalla" }
+        tipo: { $ref: "#/components/schemas/TipoFotoFalla" }
+    DatosFalla:
+      type: object
       required: [id, equipo_id, equipo_codigo, equipo_nombre, usuario_id, usuario_nombre, descripcion, prioridad, estado, fecha_reporte]
       properties:
         id:
@@ -183,6 +269,21 @@ components:
         fecha_reporte:
           type: string
           format: date-time
+    FallaRespuesta:
+      allOf:
+        - { $ref: "#/components/schemas/DatosFalla" }
+      unevaluatedProperties: false
+    FallaDetalleRespuesta:
+      allOf:
+        - { $ref: "#/components/schemas/DatosFalla" }
+        - type: object
+          required: [fotos]
+          properties:
+            fotos:
+              type: array
+              maxItems: 3
+              items: { $ref: "#/components/schemas/FotoFallaResumen" }
+      unevaluatedProperties: false
     PaginaFallas:
       type: object
       additionalProperties: false
@@ -206,7 +307,7 @@ components:
       properties:
         codigo:
           type: string
-          enum: [DATOS_INVALIDOS, NO_AUTORIZADO, SIN_PERMISO, ACTIVO_NO_ENCONTRADO]
+          enum: [DATOS_INVALIDOS, NO_AUTORIZADO, SIN_PERMISO, ACTIVO_NO_ENCONTRADO, FALLA_NO_ENCONTRADA, FOTO_NO_ENCONTRADA]
         mensaje:
           type: string
           minLength: 1

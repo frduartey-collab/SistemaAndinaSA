@@ -1,16 +1,21 @@
 import { Icono } from './Icono'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import type { EstadoOrden, FallaRespuesta, OrdenEstadoSolicitud, OrdenRespuesta, PaginaOrdenes } from '../../backend/src/dominio'
+import type { EstadoOrden, FallaRespuesta, OrdenDetalleRespuesta, OrdenEstadoSolicitud, OrdenRespuesta, PaginaOrdenes } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
+import { CerrarOrden } from './CerrarOrden'
 import { CrearOrden } from './CrearOrden'
-import { Dialogo } from './Dialogo'
+import { DetalleIntervencion } from './DetalleIntervencion'
 import { mensajeError } from './api'
 
 type Vista =
   | { tipo: 'cargando'; datos?: PaginaOrdenes }
   | { tipo: 'error'; mensaje: string; datos?: PaginaOrdenes }
   | { tipo: 'lista'; datos: PaginaOrdenes }
+
+type DialogoOrden =
+  | { tipo: 'cierre'; orden: OrdenRespuesta }
+  | { tipo: 'detalle'; id: number; ordenInicial?: OrdenDetalleRespuesta; aviso?: string }
 
 const ICONOS_ESTADO = { PENDIENTE: 'pendiente', EN_PROGRESO: 'progreso', CERRADA: 'completar' } as const
 const ESTADOS: Record<EstadoOrden, string> = {
@@ -21,7 +26,8 @@ const TAMANO = 20
 
 export function OrdenesTrabajo() {
   const { estado, solicitar, puedeEscribir } = useAuth()
-  const esTecnico = estado.tipo === 'activa' && estado.usuario.rol === 'TECNICO'
+  const usuario = estado.tipo === 'activa' ? estado.usuario : null
+  const esTecnico = usuario?.rol === 'TECNICO'
   const [mostrarTodas, setMostrarTodas] = useState(false)
   const soloAbiertas = esTecnico && !mostrarTodas
   const { state } = useLocation()
@@ -32,7 +38,8 @@ export function OrdenesTrabajo() {
   const [page, setPage] = useState(1)
   const [revision, setRevision] = useState(0)
   const [vista, setVista] = useState<Vista>({ tipo: 'cargando' })
-  const [confirmacion, setConfirmacion] = useState<OrdenRespuesta | null>(null)
+  const [dialogo, setDialogo] = useState<DialogoOrden | null>(null)
+  const encabezado = useRef<HTMLHeadingElement>(null)
   const [cambiando, setCambiando] = useState<number | null>(null)
   const [aviso, setAviso] = useState('')
   const [errorCambio, setErrorCambio] = useState('')
@@ -67,33 +74,50 @@ export function OrdenesTrabajo() {
     setRevision((anterior) => anterior + 1)
   }
 
-  async function cambiarEstado(orden: OrdenRespuesta, estado: OrdenEstadoSolicitud['estado']) {
+  async function iniciarOrden(orden: OrdenRespuesta) {
     if (cambiando !== null) return
     setAviso('')
     setErrorCambio('')
     setCambiando(orden.id)
-    const body: OrdenEstadoSolicitud = { estado }
+    const body: OrdenEstadoSolicitud = { estado: 'EN_PROGRESO' }
     try {
       const actualizada = await solicitar<OrdenRespuesta>(`/ordenes/${orden.id}/estado`, {
         method: 'PATCH', body: JSON.stringify(body),
       })
-      if (soloAbiertas && actualizada.estado === 'CERRADA') {
-        setVista({ tipo: 'cargando' })
-        setPage(1)
-        setRevision((anterior) => anterior + 1)
-      } else {
-        setVista((anterior) => {
-          if (!anterior.datos) return anterior
-          const items = anterior.datos.items.map((item) => item.id === orden.id ? actualizada : item)
-          return { ...anterior, datos: { ...anterior.datos, items } }
-        })
-      }
-      setConfirmacion(null)
+      setVista((anterior) => {
+        if (!anterior.datos) return anterior
+        const items = anterior.datos.items.map((item) => item.id === orden.id ? actualizada : item)
+        return { ...anterior, datos: { ...anterior.datos, items } }
+      })
       setAviso('Orden #' + orden.id + ' actualizada: ' + ESTADOS[actualizada.estado] + '.')
     } catch (fallo) {
       setErrorCambio(mensajeError(fallo, 'No se pudo cambiar el estado. Intenta nuevamente.'))
     } finally {
       setCambiando(null)
+    }
+  }
+
+  function ordenCerrada(orden: OrdenDetalleRespuesta) {
+    setDialogo({ tipo: 'detalle', id: orden.id, ordenInicial: orden })
+    setAviso('Orden #' + orden.id + ' cerrada. Intervención registrada.')
+    recargarOrdenes()
+  }
+
+  function abrirCierreExistente(id: number) {
+    setDialogo({ tipo: 'detalle', id, aviso: 'La orden ya estaba cerrada. Puedes consultar su cierre registrado.' })
+    recargarOrdenes()
+  }
+
+  function recargarOrdenes() {
+    setVista({ tipo: 'cargando' })
+    setPage(1)
+    setRevision((anterior) => anterior + 1)
+  }
+
+  function cerrarDetalle() {
+    setDialogo(null)
+    if (dialogo?.tipo === 'detalle' && (dialogo.ordenInicial || dialogo.aviso)) {
+      window.requestAnimationFrame(() => encabezado.current?.focus())
     }
   }
 
@@ -121,7 +145,7 @@ export function OrdenesTrabajo() {
     <>
       <div className="encabezado-pagina">
         <div>
-          <h1>{titulo}</h1>
+          <h1 ref={encabezado} tabIndex={-1}>{titulo}</h1>
           {soloAbiertas && <p className="ayuda">Pendientes de iniciar y en progreso.</p>}
         </div>
         {esTecnico && (
@@ -140,7 +164,7 @@ export function OrdenesTrabajo() {
       </div>
 
       {aviso && <p className="aviso aviso-exito" role="status">{aviso}</p>}
-      {errorCambio && !confirmacion && <p className="aviso aviso-error" role="alert">{errorCambio}</p>}
+      {errorCambio && <p className="aviso aviso-error" role="alert">{errorCambio}</p>}
       <section className="panel lista-ordenes" aria-label="Listado de órdenes" aria-busy={vista.tipo === 'cargando'}>
         {vista.tipo === 'cargando' && <p role="status">Cargando órdenes…</p>}
         {vista.tipo === 'error' && (
@@ -179,15 +203,26 @@ export function OrdenesTrabajo() {
                   {orden.estado === 'PENDIENTE' && (
                     <button className="boton boton-primario" type="button" aria-label={'Iniciar orden #' + orden.id}
                       disabled={vista.tipo === 'cargando' || cambiando !== null}
-                      onClick={() => cambiarEstado(orden, 'EN_PROGRESO')}>
+                      onClick={() => iniciarOrden(orden)}>
                       <Icono nombre="iniciar" />
                       {cambiando === orden.id ? 'Actualizando…' : 'Iniciar trabajo'}
                     </button>
                   )}
-                  {orden.estado === 'EN_PROGRESO' && (
+                  {orden.estado === 'EN_PROGRESO' && esTecnico && usuario.id === orden.tecnico_id && (
                     <button className="boton boton-secundario" type="button" aria-label={'Cerrar orden #' + orden.id}
                       disabled={vista.tipo === 'cargando' || cambiando !== null}
-                      onClick={() => { setErrorCambio(''); setConfirmacion(orden) }}><Icono nombre="completar" />Cerrar orden</button>
+                      onClick={() => {
+                        setAviso('')
+                        setErrorCambio('')
+                        setDialogo({ tipo: 'cierre', orden })
+                      }}><Icono nombre="completar" />Cerrar orden</button>
+                  )}
+                  {orden.estado === 'CERRADA' && (
+                    <button className="boton boton-secundario" type="button" aria-label={'Ver intervención de la orden #' + orden.id}
+                      disabled={vista.tipo === 'cargando' || cambiando !== null}
+                      onClick={() => setDialogo({ tipo: 'detalle', id: orden.id })}>
+                      <Icono nombre="ver" />Ver intervención
+                    </button>
                   )}
                 </li>
               ))}
@@ -210,21 +245,13 @@ export function OrdenesTrabajo() {
       </section>
 
       {puedeEscribir && creando && <CrearOrden fallaInicial={fallaInicial} alCerrar={cerrarCreacion} alGuardar={ordenCreada} />}
-      {confirmacion && (
-        <Dialogo titulo={'Cerrar orden #' + confirmacion.id} ocupado={cambiando !== null}
-          alCerrar={() => { setConfirmacion(null); setErrorCambio('') }}>
-          <p>¿Confirmas que terminó el trabajo en {confirmacion.equipo_codigo}?</p>
-          {errorCambio && <p role="alert" className="aviso aviso-error">{errorCambio}</p>}
-          <div className="dialogo-acciones">
-            <button type="button" className="boton boton-secundario" disabled={cambiando !== null}
-              onClick={() => { setConfirmacion(null); setErrorCambio('') }}>Cancelar</button>
-            <button type="button" className="boton boton-primario" disabled={cambiando !== null}
-              onClick={() => cambiarEstado(confirmacion, 'CERRADA')}>
-              <Icono nombre="completar" />
-              {cambiando !== null ? 'Cerrando…' : 'Confirmar cierre'}
-            </button>
-          </div>
-        </Dialogo>
+      {dialogo?.tipo === 'cierre' && (
+        <CerrarOrden orden={dialogo.orden} alCerrar={() => setDialogo(null)} alGuardar={ordenCerrada}
+          alEncontrarCerrada={() => abrirCierreExistente(dialogo.orden.id)} />
+      )}
+      {dialogo?.tipo === 'detalle' && (
+        <DetalleIntervencion key={dialogo.id} id={dialogo.id} ordenInicial={dialogo.ordenInicial}
+          aviso={dialogo.aviso} alCerrar={cerrarDetalle} />
       )}
     </>
   )

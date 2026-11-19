@@ -91,12 +91,17 @@ export function ListaFallas({ resumen = false }: { resumen?: boolean } = {}) {
                 <p className="ayuda">
                   {mostrarFecha(falla.fecha_reporte)} · Reportada{puedeAsignar ? ' por ' + falla.usuario_nombre : ''}
                 </p>
-                {puedeAsignar && soloPendientes && vista.tipo === 'lista' && (
-                  <Link className="boton boton-secundario crear-desde-falla" to="/ordenes" state={{ falla }}>
-                    <Icono nombre="ordenNueva" />
-                    Crear orden
+                <div className="acciones-reporte">
+                  <Link className="boton boton-secundario" to={'/fallas/' + falla.id}
+                    aria-label={'Ver detalle de falla #' + falla.id}>
+                    <Icono nombre="ver" />Ver detalle
                   </Link>
-                )}
+                  {puedeAsignar && soloPendientes && vista.tipo === 'lista' && (
+                    <Link className="boton boton-secundario" to="/ordenes" state={{ falla }}>
+                      <Icono nombre="ordenNueva" />Crear orden
+                    </Link>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

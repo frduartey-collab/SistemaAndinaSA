@@ -4,11 +4,20 @@ import jwt from 'jsonwebtoken';
 import { Datos } from './datos.js';
 import { Fallas } from './fallas.js';
 import { OrdenesTrabajo } from './ordenes.js';
+import { InventarioRepuestos } from './repuestos.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
 import { rutValido } from './rut.js';
-import { solicitud, idPositivo, consultaActivos, consultaFallas, consultaOrdenes, consultaTecnicos } from './validacion.js';
-import type { LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta, ActivoCrearSolicitud, ActivoActualizarSolicitud, FallaCrearSolicitud, OrdenCrearSolicitud, OrdenEstadoSolicitud, Rol } from './dominio.js';
+import {
+  solicitud, idPositivo, consultaActivos, consultaFallas, consultaNotificaciones,
+  consultaOrdenes, consultaTecnicos, consultaRepuestos,
+} from './validacion.js';
+import type {
+  LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta,
+  ActivoCrearSolicitud, ActivoActualizarSolicitud, FallaCrearSolicitud,
+  OrdenCierreSolicitud, OrdenCrearSolicitud, OrdenEstadoSolicitud, Rol,
+  MovimientoRepuestoSolicitud, RepuestoActualizarSolicitud, RepuestoCrearSolicitud,
+} from './dominio.js';
 
 interface Options {
   secret: string;
@@ -32,12 +41,20 @@ export async function crearAplicacion(options: Options) {
   if (!Number.isInteger(ttl) || ttl < 1 || !Number.isInteger(max) || max < 1 || windowMs < 1) throw new Error('Políticas de sesión inválidas.');
   const datos = options.datos ?? new Datos();
   const fallas = new Fallas(datos);
-  const ordenes = new OrdenesTrabajo(datos);
+  const inventario = new InventarioRepuestos(datos);
+  const ordenes = new OrdenesTrabajo(datos, inventario);
   const dummy = await hashPassword(randomUUID());
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', false);
   app.use((_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
+
+  // Solo este endpoint admite fotos codificadas y autoriza antes de leer el cuerpo.
+  app.post('/fallas', autenticado, accesoFallas, express.json({ limit: '21mb', strict: true }), (req, res) => {
+    const input = solicitud<FallaCrearSolicitud>('fallas', 'FallaCrearSolicitud', req.body);
+    const { id } = (res.locals as Context).usuario;
+    res.status(201).json(fallas.crear(input, id, now()));
+  });
   app.use(express.json({ limit: '16kb', strict: true }));
 
   function bloqueado(rut: string, res: Response): void {
@@ -197,11 +214,6 @@ export async function crearAplicacion(options: Options) {
     next();
   }
 
-  app.post('/fallas', autenticado, accesoFallas, (req, res) => {
-    const input = solicitud<FallaCrearSolicitud>('fallas', 'FallaCrearSolicitud', req.body);
-    const { id } = (res.locals as Context).usuario;
-    res.status(201).json(fallas.crear(input, id, now()));
-  });
   app.get('/fallas', autenticado, accesoFallas, (req, res) => {
     const { id, rol } = (res.locals as Context).usuario;
     const admin = administrar(rol);
@@ -209,10 +221,35 @@ export async function crearAplicacion(options: Options) {
     if (consulta.sin_orden && !admin) throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo un administrador puede consultar fallas para asignar.');
     res.json(fallas.listar(consulta, admin ? undefined : id));
   });
+  app.get('/fallas/:id', autenticado, accesoFallas, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    res.json(fallas.detalle(idPositivo(req.params.id), administrar(rol) ? undefined : id));
+  });
+  app.get('/fallas/:id/fotos/:fotoId', autenticado, accesoFallas, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    const foto = fallas.foto(idPositivo(req.params.id), idPositivo(req.params.fotoId), administrar(rol) ? undefined : id);
+    res.set('Content-Type', foto.tipo).end(foto.contenido);
+  });
 
   function administrar(rol: Rol): boolean {
     return rol === 'SUPERVISOR' || rol === 'JEFATURA';
   }
+
+  function accesoNotificaciones(_req: Request, res: Response, next: NextFunction): void {
+    const { rol } = (res.locals as Context).usuario;
+    if (!administrar(rol)) throw new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene acceso a notificaciones.');
+    next();
+  }
+
+  app.get('/notificaciones', autenticado, accesoNotificaciones, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    res.json(fallas.listarNotificaciones(consultaNotificaciones(req.query), id));
+  });
+  app.patch('/notificaciones/:id/leida', autenticado, accesoNotificaciones, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    fallas.leerNotificacion(idPositivo(req.params.id), id, now());
+    res.status(204).end();
+  });
 
   function exigirAdministracionOrdenes(_req: Request, res: Response, next: NextFunction): void {
     const { rol } = (res.locals as Context).usuario;
@@ -238,11 +275,73 @@ export async function crearAplicacion(options: Options) {
     const { id, rol } = (res.locals as Context).usuario;
     res.json(ordenes.listar(consultaOrdenes(req.query), administrar(rol) ? undefined : id));
   });
+  app.get('/ordenes/:id', autenticado, accesoOrdenes, (req, res) => {
+    const ordenId = idPositivo(req.params.id);
+    const { id, rol } = (res.locals as Context).usuario;
+    res.json(ordenes.detalle(ordenId, administrar(rol) ? undefined : id));
+  });
   app.patch('/ordenes/:id/estado', autenticado, accesoOrdenes, (req, res) => {
     const ordenId = idPositivo(req.params.id);
     const input = solicitud<OrdenEstadoSolicitud>('ordenes', 'OrdenEstadoSolicitud', req.body);
     const { id, rol } = (res.locals as Context).usuario;
     res.json(ordenes.cambiarEstado(ordenId, input.estado, id, administrar(rol), now()));
+  });
+  app.put('/ordenes/:id/cierre', autenticado, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    if (rol !== 'TECNICO') throw new ErrorAPI(403, 'SIN_PERMISO', 'El cierre corresponde al técnico asignado.');
+    const ordenId = idPositivo(req.params.id);
+    const input = solicitud<OrdenCierreSolicitud>('ordenes', 'OrdenCierreSolicitud', req.body);
+    res.json(ordenes.cerrar(ordenId, input, id, now()));
+  });
+
+  function gestionarInventario(rol: Rol): boolean {
+    return rol === 'BODEGA' || rol === 'JEFATURA';
+  }
+
+  function leerRepuestos(_req: Request, res: Response, next: NextFunction): void {
+    const { rol } = (res.locals as Context).usuario;
+    if (!gestionarInventario(rol) && rol !== 'TECNICO') {
+      throw new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene acceso a repuestos.');
+    }
+    next();
+  }
+
+  function escribirRepuestos(_req: Request, res: Response, next: NextFunction): void {
+    const { rol } = (res.locals as Context).usuario;
+    if (!gestionarInventario(rol)) {
+      throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo Bodega o Jefatura puede gestionar repuestos.');
+    }
+    next();
+  }
+
+  app.get('/repuestos', autenticado, leerRepuestos, (req, res) => {
+    res.json(inventario.listar(consultaRepuestos(req.query)));
+  });
+  app.post('/repuestos', autenticado, escribirRepuestos, (req, res) => {
+    const input = solicitud<RepuestoCrearSolicitud>('repuestos', 'RepuestoCrearSolicitud', req.body);
+    const { id } = (res.locals as Context).usuario;
+    res.status(201).json(inventario.crear(input, id, now()));
+  });
+  app.get('/repuestos/:id', autenticado, leerRepuestos, (req, res) => {
+    res.json(inventario.obtener(idPositivo(req.params.id)));
+  });
+  app.put('/repuestos/:id', autenticado, escribirRepuestos, (req, res) => {
+    const repuestoId = idPositivo(req.params.id);
+    const input = solicitud<RepuestoActualizarSolicitud>('repuestos', 'RepuestoActualizarSolicitud', req.body);
+    const { id } = (res.locals as Context).usuario;
+    res.json(inventario.actualizar(repuestoId, input, id, now()));
+  });
+  app.delete('/repuestos/:id', autenticado, escribirRepuestos, (req, res) => {
+    const repuestoId = idPositivo(req.params.id);
+    const { id } = (res.locals as Context).usuario;
+    inventario.darDeBaja(repuestoId, id, now());
+    res.status(204).end();
+  });
+  app.post('/repuestos/:id/movimientos', autenticado, escribirRepuestos, (req, res) => {
+    const repuestoId = idPositivo(req.params.id);
+    const input = solicitud<MovimientoRepuestoSolicitud>('repuestos', 'MovimientoRepuestoSolicitud', req.body);
+    const { id } = (res.locals as Context).usuario;
+    res.status(201).json(inventario.mover(repuestoId, input, id, now()));
   });
 
   app.use((_req, res) => { res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'La ruta no existe.' }); });

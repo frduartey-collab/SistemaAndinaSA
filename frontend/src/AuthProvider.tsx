@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { LoginRespuesta, LoginSolicitud, UsuarioSesion } from '../../backend/src/dominio'
 import { AuthContext, type EstadoSesion, type RutaApi, type SesionGuardada } from './AuthContext'
-import { ErrorApi, llamarApi } from './api'
+import { ErrorApi, llamarApi, type OpcionesApi } from './api'
 
 const CLAVE_SESION = 'andina.sesion'
 const AVISO_VENCIDA = 'Tu sesión ya no está activa. Ingresa nuevamente.'
@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     activarSesion({ token, venceEn: Date.now() + expiraEn * 1000 }, usuario)
   }
 
-  const solicitar = useCallback(async <T,>(ruta: RutaApi, opciones?: RequestInit) => {
+  const solicitar = useCallback(async <T,>(ruta: RutaApi, opciones?: OpcionesApi) => {
     const token = tokenActual.current
     if (!token) throw new ErrorApi(AVISO_VENCIDA, 401, 'NO_AUTORIZADO')
 

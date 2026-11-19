@@ -86,3 +86,33 @@ Trabajador inicia en Mi inicio con acceso a Reportar nueva falla y hasta cinco r
 Técnico inicia en Órdenes de trabajo pendientes, que incluye sus asignaciones pendientes y en progreso. Puede avanzar sus estados y consultar también sus órdenes cerradas desde Ver todas mis órdenes. GET /ordenes admite el filtro opcional solo_abiertas, aplicado antes de la paginación. Los controles existentes de HU-04 rechazan las operaciones de Trabajador con 403 SIN_PERMISO e impiden asignarle una orden.
 
 Validación. Los cuatro contratos OpenAPI validaron 15 operaciones. Pasaron 53 pruebas de backend y la compilación de React. Chromium verificó el inicio, el menú, la ruta directa y el flujo de cierre por rol con SQLite en memoria.
+
+## Registro de intervenciones (HU-05)
+
+El técnico asignado usa el formulario de cierre en una orden en progreso para registrar diagnóstico, solución, minutos y repuestos opcionales en texto libre. PUT /ordenes/{id}/cierre guarda una intervención por orden y registra el cierre y la auditoría en la misma transacción. Un reintento con los mismos datos devuelve el registro existente. Si los datos difieren, la API devuelve 409 y conserva la intervención original.
+
+GET /ordenes/{id} devuelve el detalle para el técnico asignado, Supervisor y Jefatura. Después del cierre, la interfaz abre el resumen de solo lectura. Las órdenes históricas siguen visibles y muestran que se cerraron antes del registro de intervenciones. SQLite protege las órdenes cerradas y sus intervenciones contra edición y borrado. PATCH /ordenes/{id}/estado conserva el paso a EN_PROGRESO. Los repuestos quedan documentados para la futura integración con Inventario.
+
+Pasaron 57 pruebas de backend y la compilación de React. La validación cubrió 17 operaciones OpenAPI y el flujo en Chromium usó SQLite en memoria. Se verificaron la recuperación de un error de red, el bloqueo de otro envío, la consulta del cierre con permisos y la visualización de una orden histórica.
+
+## Landing comercial de SIGEM
+
+La ruta pública / presenta Particular a $54.990 CLP al mes, con hasta 50 equipos, una sede, tres cuentas y activación sin costo. Empresa presenta $600.000 CLP al mes y $2.500.000 CLP por única vez para la puesta en marcha. Los valores se muestran antes de impuestos y las capacidades futuras aparecen como En desarrollo.
+
+Seleccionar plan abre un resumen con acceso a /login. La contratación y los pagos corresponden a una etapa posterior. El inicio protegido pasa a /inicio y conserva los destinos por rol. Se verificaron la compilación del frontend, la selección en Chromium a 390 px y el ingreso de Trabajador y Técnico.
+
+## Inventario de bodega y consumo de repuestos
+
+Bodega y Jefatura pueden crear y editar repuestos, gestionar entradas y salidas, y dar de baja fichas sin stock. Técnico puede consultar repuestos para sus intervenciones. El stock actual cambia mediante movimientos y las existencias por debajo del mínimo se indican en el catálogo.
+
+Al cerrar una orden, el técnico puede indicar los repuestos y cantidades utilizados. La transacción de SQLite registra la intervención, los movimientos, el consumo en orden_repuesto y el estado CERRADA. El cierre con existencias insuficientes devuelve 400 STOCK_INSUFICIENTE y revierte todas las escrituras. Una repetición idéntica devuelve el cierre guardado. El resumen conserva el nombre y código registrados al cerrar y las notas de intervenciones anteriores.
+
+El contrato de repuestos describe el catálogo, la baja lógica y los movimientos. El contrato de órdenes define los consumos del cierre. El [plan de Inventario](../plans/2026-11-19-inventario-bodega.md) documenta las reglas y los casos verificados.
+
+Pasaron 61 pruebas de backend y validaron 23 operaciones OpenAPI. La compilación del frontend pasó. Chromium comprobó el alta y los movimientos con Bodega, el aviso de stock bajo, el rechazo y reintento tras reponer existencias, el detalle del consumo y el bloqueo del reenvío manual cuando no se pudo confirmar un movimiento.
+
+## Fotografías y avisos de fallas (HU-03)
+
+El reporte permite adjuntar hasta tres imágenes JPEG, PNG o WebP de 5 MiB cada una. La API valida tipo, firma y tamaño. SQLite guarda la falla, las fotografías y los avisos en la misma transacción. El autor, Supervisor y Jefatura pueden consultar la fotografía dentro del alcance de acceso de Fallas.
+
+Supervisor y Jefatura disponen de Avisos para consultar las fallas nuevas, marcar avisos como leídos por cuenta y abrir el reporte. Chromium comprobó el adjunto y su visualización, la conservación del formulario ante un fallo de red, la llegada del aviso y la persistencia de la lectura.

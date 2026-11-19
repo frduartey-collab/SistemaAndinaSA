@@ -21,7 +21,7 @@ addFormats(ajv);
 ajv.addFormat('media-range', /^[\w!#$&^_.+-]+\/[\w!#$&^_.+*-]+(?:\s*;.*)?$/);
 const validate = ajv.compile(official);
 let operations = 0;
-for (const name of ['auth', 'activos', 'fallas', 'ordenes']) {
+for (const name of ['auth', 'activos', 'fallas', 'ordenes', 'repuestos', 'notificaciones']) {
   const doc = parseDocument(readFileSync(resolve(root, `docs/sprint-1/02-contratos-api/${name}.openapi.yaml`), 'utf8'), { uniqueKeys: true });
   if (doc.errors.length) throw new Error(doc.errors.map(e => e.message).join('\n'));
   const data = doc.toJSON();

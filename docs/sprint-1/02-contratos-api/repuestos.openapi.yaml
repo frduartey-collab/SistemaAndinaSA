@@ -1,0 +1,241 @@
+openapi: 3.1.0
+info:
+  title: Sistema Andina SA — Inventario de repuestos
+  version: 0.1.0
+security:
+  - bearerAuth: []
+paths:
+  /repuestos:
+    get:
+      operationId: listarRepuestos
+      summary: Consultar el catálogo vigente
+      description: Disponible para Bodega, Jefatura y Técnico. Los dados de baja se ocultan.
+      parameters:
+        - { name: q, in: query, schema: { $ref: "#/components/schemas/Busqueda" }, description: Busca por código o nombre. }
+        - { name: page, in: query, schema: { $ref: "#/components/schemas/Pagina" } }
+        - { name: size, in: query, schema: { $ref: "#/components/schemas/Tamano" } }
+      responses:
+        "200":
+          description: Página de repuestos vigentes en orden de código.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginaRepuestos" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+    post:
+      operationId: crearRepuesto
+      summary: Crear un repuesto con stock inicial cero
+      description: Disponible para Bodega y Jefatura.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RepuestoCrearSolicitud" }
+      responses:
+        "201":
+          description: Repuesto creado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RepuestoRespuesta" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "409":
+          description: CODIGO_DUPLICADO. El código ya está reservado, incluso tras una baja.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  /repuestos/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+    get:
+      operationId: obtenerRepuesto
+      summary: Consultar un repuesto vigente
+      description: Disponible para Bodega, Jefatura y Técnico.
+      responses:
+        "200": { $ref: "#/components/responses/Repuesto" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/RepuestoNoEncontrado" }
+    put:
+      operationId: actualizarRepuesto
+      summary: Actualizar los datos de catálogo de un repuesto
+      description: Disponible para Bodega y Jefatura. Si se omite la descripción, se limpia. El stock se ajusta mediante movimientos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RepuestoActualizarSolicitud" }
+      responses:
+        "200": { $ref: "#/components/responses/Repuesto" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/RepuestoNoEncontrado" }
+    delete:
+      operationId: darDeBajaRepuesto
+      summary: Dar de baja un repuesto con stock cero
+      description: Disponible para Bodega y Jefatura. La baja conserva los movimientos y los registros de intervenciones.
+      responses:
+        "204":
+          description: Baja lógica registrada.
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/RepuestoNoEncontrado" }
+        "409":
+          description: REPUESTO_CON_STOCK. Registra la salida del stock restante antes de la baja.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  /repuestos/{id}/movimientos:
+    post:
+      operationId: registrarMovimientoRepuesto
+      summary: Registrar una entrada o salida de inventario
+      description: Disponible para Bodega y Jefatura. Cada movimiento modifica el stock y registra la auditoría en una transacción.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MovimientoRepuestoSolicitud" }
+      responses:
+        "201": { $ref: "#/components/responses/Repuesto" }
+        "400":
+          description: DATOS_INVALIDOS o STOCK_INSUFICIENTE. La salida no puede superar las unidades disponibles.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/RepuestoNoEncontrado" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Repuesto:
+      description: Datos y stock actual del repuesto.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/RepuestoRespuesta" }
+    DatosInvalidos:
+      description: DATOS_INVALIDOS. Entrada inválida.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    NoAutorizado:
+      description: NO_AUTORIZADO. Se requiere una sesión válida.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string, const: Bearer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    SinPermiso:
+      description: SIN_PERMISO. El rol no puede realizar esta operación.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    RepuestoNoEncontrado:
+      description: REPUESTO_NO_ENCONTRADO. El repuesto no existe o está dado de baja.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Id: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    Unidades: { type: integer, minimum: 0, maximum: 9007199254740991 }
+    Pagina: { type: integer, minimum: 1, maximum: 9007199254740991, default: 1 }
+    Tamano: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Busqueda:
+      type: string
+      maxLength: 120
+      not: { pattern: '\u0000' }
+    CodigoRepuesto:
+      type: string
+      minLength: 1
+      maxLength: 60
+      pattern: '^[A-Za-z0-9._-]+$'
+      not: { pattern: '\s' }
+      description: Se almacena en mayúsculas y se reserva permanentemente.
+    NombreRepuesto:
+      type: string
+      minLength: 1
+      maxLength: 150
+      pattern: '\S'
+      not: { pattern: '\u0000' }
+    DescripcionRepuesto:
+      type: string
+      maxLength: 1000
+      not: { pattern: '\u0000' }
+    ConsultaRepuestos:
+      type: object
+      additionalProperties: false
+      required: [page, size]
+      properties:
+        q: { $ref: "#/components/schemas/Busqueda" }
+        page: { $ref: "#/components/schemas/Pagina" }
+        size: { $ref: "#/components/schemas/Tamano" }
+    RepuestoCrearSolicitud:
+      type: object
+      additionalProperties: false
+      required: [codigo, nombre, stock_minimo]
+      properties:
+        codigo: { $ref: "#/components/schemas/CodigoRepuesto" }
+        nombre: { $ref: "#/components/schemas/NombreRepuesto" }
+        descripcion: { $ref: "#/components/schemas/DescripcionRepuesto" }
+        stock_minimo: { $ref: "#/components/schemas/Unidades" }
+    RepuestoActualizarSolicitud:
+      type: object
+      additionalProperties: false
+      required: [nombre, stock_minimo]
+      properties:
+        nombre: { $ref: "#/components/schemas/NombreRepuesto" }
+        descripcion: { $ref: "#/components/schemas/DescripcionRepuesto" }
+        stock_minimo: { $ref: "#/components/schemas/Unidades" }
+    TipoMovimientoRepuesto:
+      type: string
+      enum: [ENTRADA, SALIDA]
+    MovimientoRepuestoSolicitud:
+      type: object
+      additionalProperties: false
+      required: [tipo, cantidad]
+      properties:
+        tipo: { $ref: "#/components/schemas/TipoMovimientoRepuesto" }
+        cantidad: { $ref: "#/components/schemas/Id" }
+        motivo: { type: string, maxLength: 500, not: { pattern: '\u0000' } }
+    RepuestoRespuesta:
+      type: object
+      additionalProperties: false
+      required: [id, codigo, nombre, descripcion, stock_actual, stock_minimo]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        codigo: { $ref: "#/components/schemas/CodigoRepuesto" }
+        nombre: { $ref: "#/components/schemas/NombreRepuesto" }
+        descripcion:
+          oneOf:
+            - { $ref: "#/components/schemas/DescripcionRepuesto" }
+            - { type: "null" }
+        stock_actual: { $ref: "#/components/schemas/Unidades" }
+        stock_minimo: { $ref: "#/components/schemas/Unidades" }
+    PaginaRepuestos:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/RepuestoRespuesta" } }
+        total: { $ref: "#/components/schemas/Unidades" }
+        page: { $ref: "#/components/schemas/Pagina" }
+        size: { $ref: "#/components/schemas/Tamano" }
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo: { type: string, minLength: 1 }
+        mensaje: { type: string, minLength: 1 }
