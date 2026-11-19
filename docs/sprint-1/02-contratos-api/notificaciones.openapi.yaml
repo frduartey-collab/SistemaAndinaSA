@@ -1,0 +1,106 @@
+openapi: 3.1.0
+info:
+  title: Manufacturas Andina — Notificaciones de fallas
+  version: 0.1.0
+  description: Avisos persistentes de fallas para los destinatarios Supervisor y Jefatura.
+security:
+  - bearerAuth: []
+paths:
+  /notificaciones:
+    get:
+      operationId: listarNotificaciones
+      summary: Consultar avisos del usuario de la sesión
+      description: Solo Supervisor o Jefatura puede consultar los avisos de su propia bandeja.
+      parameters:
+        - { name: page, in: query, schema: { $ref: "#/components/schemas/Pagina" } }
+        - { name: size, in: query, schema: { $ref: "#/components/schemas/Tamano" } }
+      responses:
+        "200":
+          description: Página ordenada del aviso más reciente al más antiguo.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginaNotificaciones" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+  /notificaciones/{id}/leida:
+    patch:
+      operationId: leerNotificacion
+      summary: Marcar un aviso propio como leído
+      description: Solo el destinatario Supervisor o Jefatura. Repetir la operación mantiene la fecha de primera lectura.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      responses:
+        "204":
+          description: Aviso leído.
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: NOTIFICACION_NO_ENCONTRADA. El aviso no existe o pertenece a otro destinatario.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    DatosInvalidos:
+      description: DATOS_INVALIDOS. Identificador o parámetros fuera del contrato.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    NoAutorizado:
+      description: NO_AUTORIZADO. Se requiere una sesión válida.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string, const: Bearer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    SinPermiso:
+      description: SIN_PERMISO. Solo Supervisor y Jefatura consultan notificaciones.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Id: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    Pagina: { type: integer, minimum: 1, maximum: 9007199254740991, default: 1 }
+    Tamano: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    ConsultaNotificaciones:
+      type: object
+      additionalProperties: false
+      required: [page, size]
+      properties:
+        page: { $ref: "#/components/schemas/Pagina" }
+        size: { $ref: "#/components/schemas/Tamano" }
+    NotificacionFalla:
+      type: object
+      additionalProperties: false
+      required: [id, falla_id, equipo_codigo, equipo_nombre, fecha, leida]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        falla_id: { $ref: "#/components/schemas/Id" }
+        equipo_codigo: { type: string, pattern: '^EQ-[0-9]{4}$' }
+        equipo_nombre: { type: string }
+        fecha: { type: string, format: date-time }
+        leida: { type: boolean }
+    PaginaNotificaciones:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/NotificacionFalla" } }
+        total: { type: integer, minimum: 0 }
+        page: { $ref: "#/components/schemas/Pagina" }
+        size: { $ref: "#/components/schemas/Tamano" }
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo: { type: string, enum: [DATOS_INVALIDOS, NO_AUTORIZADO, SIN_PERMISO, NOTIFICACION_NO_ENCONTRADA] }
+        mensaje: { type: string, minLength: 1 }

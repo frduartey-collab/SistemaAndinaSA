@@ -17,7 +17,8 @@ export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_I
   | 'CODIGO_FORMATO_INVALIDO' | 'CODIGO_DUPLICADO' | 'ACTIVO_NO_ENCONTRADO' | 'RUT_DUPLICADO'
   | 'FALLA_NO_ENCONTRADA' | 'ORDEN_DUPLICADA' | 'TECNICO_NO_DISPONIBLE'
   | 'ORDEN_NO_ENCONTRADA' | 'TRANSICION_ORDEN_INVALIDA' | 'ORDEN_YA_CERRADA'
-  | 'REPUESTO_NO_ENCONTRADO' | 'REPUESTO_CON_STOCK' | 'STOCK_INSUFICIENTE';
+  | 'REPUESTO_NO_ENCONTRADO' | 'REPUESTO_CON_STOCK' | 'STOCK_INSUFICIENTE'
+  | 'FOTO_NO_ENCONTRADA' | 'NOTIFICACION_NO_ENCONTRADA';
 export interface ErrorRespuesta { codigo: CodigoError; mensaje: string }
 
 export interface ActivoCrearSolicitud {
@@ -61,11 +62,25 @@ export interface ConsultaActivos {
 export interface PaginaActivos { items: ActivoRespuesta[]; total: number; page: number; size: number }
 
 export type EstadoFalla = 'REPORTADA';
+export type TipoFotoFalla = 'image/jpeg' | 'image/png' | 'image/webp';
+
+export interface FotoFallaSolicitud {
+  nombre: string;
+  tipo: TipoFotoFalla;
+  contenido_base64: string;
+}
+
+export interface FotoFallaResumen {
+  id: number;
+  nombre: string;
+  tipo: TipoFotoFalla;
+}
 
 export interface FallaCrearSolicitud {
   equipo_id: number;
   descripcion: string;
   prioridad?: CriticidadEquipo;
+  fotos?: FotoFallaSolicitud[];
 }
 
 export interface FallaRespuesta {
@@ -83,6 +98,23 @@ export interface FallaRespuesta {
 
 export interface ConsultaFallas { page: number; size: number; sin_orden?: boolean }
 export interface PaginaFallas { items: FallaRespuesta[]; total: number; page: number; size: number }
+
+export interface FallaDetalleRespuesta extends FallaRespuesta { fotos: FotoFallaResumen[] }
+
+export interface NotificacionFalla {
+  id: number;
+  falla_id: number;
+  equipo_codigo: CodigoEquipo;
+  equipo_nombre: string;
+  fecha: string;
+  leida: boolean;
+}
+
+export interface ConsultaNotificaciones { page: number; size: number }
+export interface PaginaNotificaciones extends ConsultaNotificaciones {
+  items: NotificacionFalla[];
+  total: number;
+}
 
 export type EstadoOrden = 'PENDIENTE' | 'EN_PROGRESO' | 'CERRADA';
 

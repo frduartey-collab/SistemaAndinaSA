@@ -9,7 +9,8 @@ import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
 import { rutValido } from './rut.js';
 import {
-  solicitud, idPositivo, consultaActivos, consultaFallas, consultaOrdenes, consultaTecnicos, consultaRepuestos,
+  solicitud, idPositivo, consultaActivos, consultaFallas, consultaNotificaciones,
+  consultaOrdenes, consultaTecnicos, consultaRepuestos,
 } from './validacion.js';
 import type {
   LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta,
@@ -47,6 +48,13 @@ export async function crearAplicacion(options: Options) {
   app.disable('x-powered-by');
   app.set('trust proxy', false);
   app.use((_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
+
+  // Solo este endpoint admite fotos codificadas y autoriza antes de leer el cuerpo.
+  app.post('/fallas', autenticado, accesoFallas, express.json({ limit: '21mb', strict: true }), (req, res) => {
+    const input = solicitud<FallaCrearSolicitud>('fallas', 'FallaCrearSolicitud', req.body);
+    const { id } = (res.locals as Context).usuario;
+    res.status(201).json(fallas.crear(input, id, now()));
+  });
   app.use(express.json({ limit: '16kb', strict: true }));
 
   function bloqueado(rut: string, res: Response): void {
@@ -206,11 +214,6 @@ export async function crearAplicacion(options: Options) {
     next();
   }
 
-  app.post('/fallas', autenticado, accesoFallas, (req, res) => {
-    const input = solicitud<FallaCrearSolicitud>('fallas', 'FallaCrearSolicitud', req.body);
-    const { id } = (res.locals as Context).usuario;
-    res.status(201).json(fallas.crear(input, id, now()));
-  });
   app.get('/fallas', autenticado, accesoFallas, (req, res) => {
     const { id, rol } = (res.locals as Context).usuario;
     const admin = administrar(rol);
@@ -218,10 +221,35 @@ export async function crearAplicacion(options: Options) {
     if (consulta.sin_orden && !admin) throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo un administrador puede consultar fallas para asignar.');
     res.json(fallas.listar(consulta, admin ? undefined : id));
   });
+  app.get('/fallas/:id', autenticado, accesoFallas, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    res.json(fallas.detalle(idPositivo(req.params.id), administrar(rol) ? undefined : id));
+  });
+  app.get('/fallas/:id/fotos/:fotoId', autenticado, accesoFallas, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    const foto = fallas.foto(idPositivo(req.params.id), idPositivo(req.params.fotoId), administrar(rol) ? undefined : id);
+    res.set('Content-Type', foto.tipo).end(foto.contenido);
+  });
 
   function administrar(rol: Rol): boolean {
     return rol === 'SUPERVISOR' || rol === 'JEFATURA';
   }
+
+  function accesoNotificaciones(_req: Request, res: Response, next: NextFunction): void {
+    const { rol } = (res.locals as Context).usuario;
+    if (!administrar(rol)) throw new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene acceso a notificaciones.');
+    next();
+  }
+
+  app.get('/notificaciones', autenticado, accesoNotificaciones, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    res.json(fallas.listarNotificaciones(consultaNotificaciones(req.query), id));
+  });
+  app.patch('/notificaciones/:id/leida', autenticado, accesoNotificaciones, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    fallas.leerNotificacion(idPositivo(req.params.id), id, now());
+    res.status(204).end();
+  });
 
   function exigirAdministracionOrdenes(_req: Request, res: Response, next: NextFunction): void {
     const { rol } = (res.locals as Context).usuario;

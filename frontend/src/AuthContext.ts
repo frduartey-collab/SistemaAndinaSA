@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { LoginSolicitud, UsuarioSesion } from '../../backend/src/dominio'
-import type { llamarApi } from './api'
+import type { llamarApi, OpcionesApi } from './api'
 
 export type SesionGuardada = {
   token: string
@@ -22,7 +22,7 @@ type DatosAuth = {
   iniciarSesion: (datos: LoginSolicitud) => Promise<void>
   cerrarSesion: () => Promise<void>
   reintentar: () => void
-  solicitar: <T>(ruta: RutaApi, opciones?: RequestInit) => Promise<T>
+  solicitar: <T>(ruta: RutaApi, opciones?: OpcionesApi) => Promise<T>
 }
 
 export const AuthContext = createContext<DatosAuth | null>(null)

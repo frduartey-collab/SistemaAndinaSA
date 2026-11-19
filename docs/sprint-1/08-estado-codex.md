@@ -110,3 +110,9 @@ Al cerrar una orden, el técnico puede indicar los repuestos y cantidades utiliz
 El contrato de repuestos describe el catálogo, la baja lógica y los movimientos. El contrato de órdenes define los consumos del cierre. El [plan de Inventario](../plans/2026-11-19-inventario-bodega.md) documenta las reglas y los casos verificados.
 
 Pasaron 61 pruebas de backend y validaron 23 operaciones OpenAPI. La compilación del frontend pasó. Chromium comprobó el alta y los movimientos con Bodega, el aviso de stock bajo, el rechazo y reintento tras reponer existencias, el detalle del consumo y el bloqueo del reenvío manual cuando no se pudo confirmar un movimiento.
+
+## Fotografías y avisos de fallas (HU-03)
+
+El reporte permite adjuntar hasta tres imágenes JPEG, PNG o WebP de 5 MiB cada una. La API valida tipo, firma y tamaño. SQLite guarda la falla, las fotografías y los avisos en la misma transacción. El autor, Supervisor y Jefatura pueden consultar la fotografía dentro del alcance de acceso de Fallas.
+
+Supervisor y Jefatura disponen de Avisos para consultar las fallas nuevas, marcar avisos como leídos por cuenta y abrir el reporte. Chromium comprobó el adjunto y su visualización, la conservación del formulario ante un fallo de red, la llegada del aviso y la persistencia de la lectura.

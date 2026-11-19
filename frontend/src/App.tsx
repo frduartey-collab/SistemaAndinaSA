@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { AjustesInterfaz } from './AjustesInterfaz'
 import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router'
 import { useAuth } from './AuthContext'
+import { AvisosFallas } from './AvisosFallas'
 import { CatalogoEquipos } from './CatalogoEquipos'
+import { DetalleFalla } from './DetalleFalla'
 import { InicioTrabajador } from './InicioTrabajador'
 import { InventarioBodega } from './InventarioBodega'
 import { LandingPlanes } from './LandingPlanes'
@@ -64,6 +66,9 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
               )}
               {puedeVerInventario && (
                 <NavLink className="enlace-nav" to="/inventario"><span className="icono-nav"><Icono nombre="inventario" /></span>Inventario</NavLink>
+              )}
+              {puedeEscribir && (
+                <NavLink className="enlace-nav" to="/avisos"><span className="icono-nav"><Icono nombre="aviso" /></span>Avisos</NavLink>
               )}
               {puedeEscribir && <NavLink className="enlace-nav" to="/registro"><span className="icono-nav"><Icono nombre="cuenta" /></span>Crear cuenta</NavLink>}
             </nav>
@@ -137,6 +142,13 @@ function Sistema() {
           ) : <Navigate to="/sin-acceso" replace />}
         />
         <Route path="/fallas" element={puedeLeer ? <ReportarFalla /> : <Navigate to="/sin-acceso" replace />} />
+        <Route path="/fallas/:id" element={puedeLeer ? <DetalleFalla /> : <Navigate to="/sin-acceso" replace />} />
+        <Route path="/avisos" element={puedeEscribir ? <AvisosFallas key={usuarioId} /> : (
+          <section className="panel estado-pagina">
+            <h1>Acceso restringido</h1>
+            <p>Los avisos de fallas están disponibles para Supervisor y Jefatura.</p>
+          </section>
+        )} />
         <Route path="/ordenes" element={puedeVerOrdenes
           ? <OrdenesTrabajo />
           : <Navigate to={puedeLeer ? '/fallas' : '/sin-acceso'} replace />} />

@@ -436,6 +436,24 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 .reporte h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
 .descripcion-falla { margin-top: 0.4rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reportes .paginacion { padding-inline: 0; }
+.acciones-reporte { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.aviso-falla h2 { margin: 0; font-size: 1.08rem; overflow-wrap: anywhere; }
+.detalle-falla { padding: clamp(1rem, 3vw, 1.5rem); }
+.detalle-falla > .ayuda { margin-top: 0.45rem; }
+.detalle-falla > .descripcion-falla { margin-top: 0.9rem; }
+.adjuntos-falla { margin-top: 1.2rem; padding-top: 0.85rem; border-top: 1px solid var(--borde); }
+.adjuntos-falla h3 { margin: 0 0 0.65rem; font-size: 1rem; }
+.galeria-falla {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.foto-falla { margin: 0; padding: 0.65rem; border: 1px solid var(--borde); border-radius: 0.55rem; }
+.foto-falla img { display: block; width: 100%; height: auto; max-height: 24rem; object-fit: contain; }
+.foto-falla figcaption { margin-top: 0.35rem; color: var(--suave); font-size: 0.85rem; overflow-wrap: anywhere; }
 
 @media (max-width: 52rem) {
   .modulo-fallas { grid-template-columns: minmax(0, 1fr); }
@@ -451,7 +469,6 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 
 .cabecera-listado-fallas { align-items: baseline; }
 .cabecera-listado-fallas [aria-pressed="true"] { background: var(--acento-suave); border-color: var(--acento); }
-.crear-desde-falla { margin-top: 0.6rem; text-decoration: none; }
 .lista-ordenes { padding: clamp(0.9rem, 3vw, 1.5rem); }
 
 .ordenes-resultados, .opciones-orden { margin: 0; padding: 0; list-style: none; }

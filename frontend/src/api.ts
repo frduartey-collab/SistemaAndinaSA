@@ -1,3 +1,5 @@
+import { esFotoCompatible, TIPOS_FOTO } from './fotosFalla'
+
 export class ErrorApi extends Error {
   readonly estado: number
   readonly codigo: string | undefined
@@ -16,21 +18,25 @@ export function mensajeError(error: unknown, alternativa: string) {
   return error instanceof ErrorApi ? error.message : alternativa
 }
 
+export type OpcionesApi = RequestInit & { formato?: 'foto' }
+
 export async function llamarApi<T>(
   ruta: "/auth/login" | "/auth/register" | "/auth/me" | "/auth/logout" | "/activos" | `/activos?${string}` | `/activos/${number}` | "/fallas" | `/fallas?${string}`
+    | `/fallas/${number}` | `/fallas/${number}/fotos/${number}` | "/notificaciones" | `/notificaciones?${string}` | `/notificaciones/${number}/leida`
     | "/ordenes" | `/ordenes?${string}` | `/ordenes/${number}` | `/ordenes/${number}/estado` | `/ordenes/${number}/cierre` | `/ordenes/tecnicos?${string}`
     | "/repuestos" | `/repuestos?${string}` | `/repuestos/${number}` | `/repuestos/${number}/movimientos`,
-  opciones: RequestInit = {},
+  opciones: OpcionesApi = {},
   token?: string,
 ): Promise<T> {
-  const headers = new Headers(opciones.headers)
-  headers.set('Accept', 'application/json')
-  if (opciones.body) headers.set('Content-Type', 'application/json')
+  const { formato, ...peticion } = opciones
+  const headers = new Headers(peticion.headers)
+  headers.set('Accept', formato === 'foto' ? TIPOS_FOTO.join(', ') + ', application/json' : 'application/json')
+  if (peticion.body) headers.set('Content-Type', 'application/json')
   if (token) headers.set('Authorization', 'Bearer ' + token)
 
   let respuesta: Response
   try {
-    respuesta = await fetch('/api' + ruta, { ...opciones, headers, cache: 'no-store' })
+    respuesta = await fetch('/api' + ruta, { ...peticion, headers, cache: 'no-store' })
   } catch (error) {
     if (opciones.signal?.aborted) throw error
     throw new ErrorApi('No se pudo conectar con el servidor. Revisa la conexión e inténtalo de nuevo.', 0)
@@ -49,6 +55,14 @@ export async function llamarApi<T>(
   }
 
   if (respuesta.status === 204) return undefined as T
+
+  if (formato === 'foto') {
+    const foto = await respuesta.blob()
+    if (!esFotoCompatible(foto.type) || foto.size === 0) {
+      throw new ErrorApi('El servidor devolvió una fotografía que no se pudo leer.', respuesta.status)
+    }
+    return foto as T
+  }
 
   try {
     return await respuesta.json() as T

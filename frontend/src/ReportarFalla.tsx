@@ -6,20 +6,21 @@ import { BuscadorEquipo } from './BuscadorEquipo'
 import { ListaFallas } from './ListaFallas'
 import { criticidades } from './activos'
 import { mensajeError } from './api'
-
-type FotoSimulada = { clave: string; nombre: string }
+import { esFotoCompatible, MAX_BYTES_FOTO, MAX_FOTOS_FALLA, nombreFoto, prepararFoto, TIPOS_FOTO, type FotoSeleccionada } from './fotosFalla'
 
 export function ReportarFalla() {
   const { solicitar } = useAuth()
   const [equipo, setEquipo] = useState<ActivoRespuesta | null>(null)
   const [descripcion, setDescripcion] = useState('')
   const [prioridad, setPrioridad] = useState<CriticidadEquipo | ''>('')
-  const [fotos, setFotos] = useState<FotoSimulada[]>([])
+  const [fotos, setFotos] = useState<FotoSeleccionada[]>([])
   const [avisoFotos, setAvisoFotos] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const [guardada, setGuardada] = useState<FallaRespuesta | null>(null)
   const campoDescripcion = useRef<HTMLTextAreaElement>(null)
+  const campoFotos = useRef<HTMLInputElement>(null)
+  const enviando = useRef(false)
 
   function elegirEquipo(seleccion: ActivoRespuesta | null) {
     setEquipo(seleccion)
@@ -30,31 +31,35 @@ export function ReportarFalla() {
 
   function seleccionarFotos(evento: ChangeEvent<HTMLInputElement>) {
     const archivos = Array.from(evento.currentTarget.files ?? [])
-    const aceptadas = archivos.filter((archivo) => archivo.type.startsWith('image/'))
     const nuevas = [...fotos]
-    let superaLimite = false
+    const avisos = new Set<string>()
 
-    for (const archivo of aceptadas) {
+    for (const archivo of archivos) {
+      if (!esFotoCompatible(archivo.type)) {
+        avisos.add('Selecciona imágenes JPEG, PNG o WebP.')
+        continue
+      }
+      if (archivo.size > MAX_BYTES_FOTO || archivo.size === 0) {
+        avisos.add('Cada fotografía debe contener datos y pesar hasta 5 MiB.')
+        continue
+      }
       const clave = archivo.name + ':' + archivo.size + ':' + archivo.lastModified
       if (nuevas.some((foto) => foto.clave === clave)) continue
-      if (nuevas.length >= 3) {
-        superaLimite = true
-        break
+      if (nuevas.length >= MAX_FOTOS_FALLA) {
+        avisos.add('Puedes adjuntar hasta 3 fotografías.')
+        continue
       }
-      nuevas.push({ clave, nombre: archivo.name })
+      nuevas.push({ clave, archivo, tipo: archivo.type, nombre: nombreFoto(archivo.name) })
     }
 
     setFotos(nuevas)
-    setAvisoFotos(
-      superaLimite ? 'Puedes seleccionar hasta 3 fotos.' :
-      aceptadas.length < archivos.length ? 'Selecciona archivos de imagen.' : '',
-    )
+    setAvisoFotos([...avisos].join(' '))
     evento.currentTarget.value = ''
   }
 
   async function guardar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
-    if (guardando) return
+    if (enviando.current) return
     if (!equipo) {
       setError('Busca y selecciona el equipo que presenta la falla.')
       return
@@ -69,8 +74,15 @@ export function ReportarFalla() {
     if (prioridad) datos.prioridad = prioridad
 
     setError('')
+    enviando.current = true
     setGuardando(true)
     try {
+      try {
+        if (fotos.length) datos.fotos = await Promise.all(fotos.map(prepararFoto))
+      } catch (fallo) {
+        setAvisoFotos(fallo instanceof Error ? fallo.message : 'No se pudieron leer las fotografías.')
+        return
+      }
       const falla = await solicitar<FallaRespuesta>('/fallas', { method: 'POST', body: JSON.stringify(datos) })
       setGuardada(falla)
       setEquipo(null)
@@ -81,6 +93,7 @@ export function ReportarFalla() {
     } catch (fallo) {
       setError(mensajeError(fallo, 'No se pudo guardar la falla. Conservamos tus datos para que puedas reintentar.'))
     } finally {
+      enviando.current = false
       setGuardando(false)
     }
   }
@@ -118,10 +131,10 @@ export function ReportarFalla() {
                 {equipo && <p className="ayuda">La sugerencia se basa en la criticidad del equipo. Puedes cambiarla.</p>}
               </div>
               <div className="campo fotos-falla">
-                <label htmlFor="falla-fotos" className="etiqueta-con-icono"><Icono nombre="foto" />Fotografías ({fotos.length}/3)</label>
-                <p className="ayuda" id="falla-fotos-ayuda">Selección de prueba. Las imágenes no se envían ni se guardan.</p>
-                <input id="falla-fotos" type="file" multiple accept="image/*" onChange={seleccionarFotos}
-                  aria-describedby="falla-fotos-ayuda" disabled={fotos.length >= 3} />
+                <label htmlFor="falla-fotos" className="etiqueta-con-icono"><Icono nombre="foto" />Fotografías ({fotos.length}/{MAX_FOTOS_FALLA})</label>
+                <p className="ayuda" id="falla-fotos-ayuda">Opcional. Adjunta hasta 3 imágenes JPEG, PNG o WebP de hasta 5 MiB cada una.</p>
+                <input id="falla-fotos" ref={campoFotos} type="file" multiple accept={TIPOS_FOTO.join(',')} onChange={seleccionarFotos}
+                  aria-describedby="falla-fotos-ayuda" disabled={fotos.length >= MAX_FOTOS_FALLA} />
                 {avisoFotos && <p className="ayuda" role="status">{avisoFotos}</p>}
                 {fotos.length > 0 && (
                   <ul className="lista-fotos">
@@ -132,6 +145,7 @@ export function ReportarFalla() {
                           onClick={() => {
                             setFotos((actuales) => actuales.filter((actual) => actual.clave !== foto.clave))
                             setAvisoFotos('')
+                            requestAnimationFrame(() => campoFotos.current?.focus())
                           }}><Icono nombre="cerrar" />Quitar</button>
                       </li>
                     ))}
