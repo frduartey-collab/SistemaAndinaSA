@@ -6,6 +6,7 @@ import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router'
 import { useAuth } from './AuthContext'
 import { CatalogoEquipos } from './CatalogoEquipos'
 import { InicioTrabajador } from './InicioTrabajador'
+import { LandingPlanes } from './LandingPlanes'
 import { Login } from './Login'
 import { Registro } from './Registro'
 import { ReportarFalla } from './ReportarFalla'
@@ -48,7 +49,7 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes }: {
           {puedeLeer && (
             <nav className="navegacion-sigem" aria-label="Secciones de SIGEM">
               {estado.usuario.rol === 'TRABAJADOR' && (
-                <NavLink className="enlace-nav" to="/" end><span className="icono-nav"><Icono nombre="inicio" /></span>Inicio</NavLink>
+                <NavLink className="enlace-nav" to="/inicio" end><span className="icono-nav"><Icono nombre="inicio" /></span>Inicio</NavLink>
               )}
               <NavLink className="enlace-nav" to="/equipos"><span className="icono-nav"><Icono nombre="equipo" /></span>Equipos</NavLink>
               <NavLink className="enlace-nav" to="/fallas"><span className="icono-nav"><Icono nombre="falla" /></span>Fallas</NavLink>
@@ -80,7 +81,7 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes }: {
   )
 }
 
-export default function App() {
+function Sistema() {
   const { estado, puedeLeer, puedeEscribir, reintentar } = useAuth()
   const [borrador, setBorrador] = useState<{ usuarioId: number; datos: BorradorEquipo } | null>(null)
 
@@ -109,7 +110,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Registro />} />
       <Route element={<LayoutProtegido alSalir={() => setBorrador(null)} puedeVerOrdenes={puedeVerOrdenes} />}>
-        <Route index element={rol === 'TRABAJADOR'
+        <Route path="/inicio" element={rol === 'TRABAJADOR'
           ? <InicioTrabajador />
           : <Navigate to={destinoInicio} replace />} />
         <Route
@@ -141,3 +142,12 @@ export default function App() {
   )
 }
 
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPlanes />} />
+      <Route path="/*" element={<Sistema />} />
+    </Routes>
+  )
+}

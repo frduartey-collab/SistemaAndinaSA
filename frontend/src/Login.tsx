@@ -22,7 +22,7 @@ export function Login() {
   const campoPassword = useRef<HTMLInputElement>(null)
 
   if (estado.tipo === 'activa') {
-    return <Navigate to="/" replace />
+    return <Navigate to="/inicio" replace />
   }
 
   async function ingresar(evento: FormEvent<HTMLFormElement>) {
