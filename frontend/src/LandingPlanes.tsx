@@ -9,7 +9,7 @@ const planes = [
     id: 'particular',
     nombre: 'Particular',
     descripcion: 'Para equipos pequeños que gestionan el mantenimiento de una sede.',
-    mensualidad: '$24.900',
+    mensualidad: '$54.990',
     arranque: 'Activación sin costo · Configuración por cuenta propia',
     funciones: ['Una sede, hasta 50 equipos y 3 cuentas', 'Catálogo de equipos y reporte de fallas',
       'Asignación y seguimiento de órdenes', 'Cierre con diagnóstico, tiempos y repuestos en texto libre'],

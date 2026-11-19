@@ -97,6 +97,6 @@ Pasaron 57 pruebas de backend y la compilación de React. La validación cubrió
 
 ## Landing comercial de SIGEM
 
-La ruta pública / presenta Particular a $24.900 CLP al mes, con hasta 50 equipos, una sede, tres cuentas y activación sin costo. Empresa presenta $600.000 CLP al mes y $2.500.000 CLP por única vez para la puesta en marcha. Los valores se muestran antes de impuestos y las capacidades futuras aparecen como En desarrollo.
+La ruta pública / presenta Particular a $54.990 CLP al mes, con hasta 50 equipos, una sede, tres cuentas y activación sin costo. Empresa presenta $600.000 CLP al mes y $2.500.000 CLP por única vez para la puesta en marcha. Los valores se muestran antes de impuestos y las capacidades futuras aparecen como En desarrollo.
 
 Seleccionar plan abre un resumen con acceso a /login. La contratación y los pagos corresponden a una etapa posterior. El inicio protegido pasa a /inicio y conserva los destinos por rol. Se verificaron la compilación del frontend, la selección en Chromium a 390 px y el ingreso de Trabajador y Técnico.
