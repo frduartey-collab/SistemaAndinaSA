@@ -44,9 +44,14 @@ paths:
     get:
       operationId: listarOrdenes
       summary: Listar órdenes recientes según el rol
+      description: El filtro de órdenes abiertas se aplica antes de la paginación y respeta las asignaciones del técnico.
       parameters:
         - { name: page, in: query, schema: { $ref: "#/components/schemas/Pagina" } }
         - { name: size, in: query, schema: { $ref: "#/components/schemas/Tamano" } }
+        - name: solo_abiertas
+          in: query
+          description: Incluye solo órdenes pendientes y en progreso cuando se indica true.
+          schema: { type: boolean, default: false }
       responses:
         "200":
           description: Página de órdenes visibles.
@@ -148,6 +153,7 @@ components:
       properties:
         page: { $ref: "#/components/schemas/Pagina" }
         size: { $ref: "#/components/schemas/Tamano" }
+        solo_abiertas: { type: boolean }
     ConsultaTecnicos:
       type: object
       additionalProperties: false

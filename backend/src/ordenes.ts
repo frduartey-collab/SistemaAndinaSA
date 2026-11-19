@@ -70,8 +70,11 @@ export class OrdenesTrabajo {
   }
 
   listar(consulta: ConsultaOrdenes, tecnicoId?: number): PaginaOrdenes {
-    const where = tecnicoId === undefined ? '' : ' WHERE o.tecnico_id = ?';
+    const condiciones: string[] = [];
     const parametros = tecnicoId === undefined ? [] : [tecnicoId];
+    if (tecnicoId !== undefined) condiciones.push('o.tecnico_id = ?');
+    if (consulta.solo_abiertas) condiciones.push("o.estado IN ('PENDIENTE', 'EN_PROGRESO')");
+    const where = condiciones.length ? ' WHERE ' + condiciones.join(' AND ') : '';
     const offset = (consulta.page - 1) * consulta.size;
     return this.datos.db.transaction(() => {
       const items = this.datos.db.prepare<number[], OrdenRespuesta>(

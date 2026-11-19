@@ -103,8 +103,9 @@ export interface OrdenRespuesta extends OrdenCrearSolicitud {
   estado: EstadoOrden;
 }
 
-export interface ConsultaOrdenes { page: number; size: number }
-export interface ConsultaTecnicos extends ConsultaOrdenes { q?: string }
+interface PaginacionOrdenes { page: number; size: number }
+export interface ConsultaOrdenes extends PaginacionOrdenes { solo_abiertas?: boolean }
+export interface ConsultaTecnicos extends PaginacionOrdenes { q?: string }
 export interface TecnicoResumen { id: number; nombre: string }
-export interface PaginaOrdenes extends ConsultaOrdenes { items: OrdenRespuesta[]; total: number }
-export interface PaginaTecnicos extends ConsultaOrdenes { items: TecnicoResumen[]; total: number }
+export interface PaginaOrdenes extends PaginacionOrdenes { items: OrdenRespuesta[]; total: number }
+export interface PaginaTecnicos extends PaginacionOrdenes { items: TecnicoResumen[]; total: number }

@@ -82,7 +82,9 @@ export function consultaFallas(query: Record<string, unknown>): ConsultaFallas {
 }
 
 export function consultaOrdenes(query: Record<string, unknown>): ConsultaOrdenes {
-  return validarConsulta<ConsultaOrdenes>('ordenes', 'ConsultaOrdenes', query);
+  const filtro = query.solo_abiertas;
+  const solo_abiertas = filtro === 'true' ? true : filtro === 'false' ? false : filtro;
+  return validarConsulta<ConsultaOrdenes>('ordenes', 'ConsultaOrdenes', { ...query, solo_abiertas });
 }
 
 export function consultaTecnicos(query: Record<string, unknown>): ConsultaTecnicos {
