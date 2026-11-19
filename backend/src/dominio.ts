@@ -16,7 +16,8 @@ export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_I
   | 'DEMASIADOS_INTENTOS' | 'DATOS_INVALIDOS' | 'NO_AUTORIZADO' | 'SIN_PERMISO'
   | 'CODIGO_FORMATO_INVALIDO' | 'CODIGO_DUPLICADO' | 'ACTIVO_NO_ENCONTRADO' | 'RUT_DUPLICADO'
   | 'FALLA_NO_ENCONTRADA' | 'ORDEN_DUPLICADA' | 'TECNICO_NO_DISPONIBLE'
-  | 'ORDEN_NO_ENCONTRADA' | 'TRANSICION_ORDEN_INVALIDA' | 'ORDEN_YA_CERRADA';
+  | 'ORDEN_NO_ENCONTRADA' | 'TRANSICION_ORDEN_INVALIDA' | 'ORDEN_YA_CERRADA'
+  | 'REPUESTO_NO_ENCONTRADO' | 'REPUESTO_CON_STOCK' | 'STOCK_INSUFICIENTE';
 export interface ErrorRespuesta { codigo: CodigoError; mensaje: string }
 
 export interface ActivoCrearSolicitud {
@@ -98,6 +99,7 @@ export interface OrdenCierreSolicitud {
   solucion: string;
   duracion_minutos: number;
   repuestos_usados?: string;
+  repuestos_consumidos?: RepuestoConsumoSolicitud[];
 }
 
 export interface IntervencionRespuesta {
@@ -107,6 +109,7 @@ export interface IntervencionRespuesta {
   solucion: string;
   duracion_minutos: number;
   repuestos_usados: string | null;
+  repuestos_consumidos: RepuestoConsumidoRespuesta[];
   registrada_en: string;
 }
 
@@ -130,3 +133,33 @@ export interface ConsultaTecnicos extends PaginacionOrdenes { q?: string }
 export interface TecnicoResumen { id: number; nombre: string }
 export interface PaginaOrdenes extends PaginacionOrdenes { items: OrdenRespuesta[]; total: number }
 export interface PaginaTecnicos extends PaginacionOrdenes { items: TecnicoResumen[]; total: number }
+
+export interface RepuestoActualizarSolicitud {
+  nombre: string;
+  descripcion?: string;
+  stock_minimo: number;
+}
+
+export interface RepuestoCrearSolicitud extends RepuestoActualizarSolicitud { codigo: string }
+
+export interface RepuestoRespuesta {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  stock_actual: number;
+  stock_minimo: number;
+}
+
+export interface ConsultaRepuestos { q?: string; page: number; size: number }
+export interface PaginaRepuestos { items: RepuestoRespuesta[]; total: number; page: number; size: number }
+
+export type TipoMovimientoRepuesto = 'ENTRADA' | 'SALIDA';
+export interface MovimientoRepuestoSolicitud {
+  tipo: TipoMovimientoRepuesto;
+  cantidad: number;
+  motivo?: string;
+}
+
+export interface RepuestoConsumoSolicitud { repuesto_id: number; cantidad: number }
+export interface RepuestoConsumidoRespuesta extends RepuestoConsumoSolicitud { codigo: string; nombre: string }

@@ -230,7 +230,7 @@ test('El detalle respeta permisos y solo el técnico asignado puede cerrar una o
   assert.equal(body.estado, 'CERRADA');
   assert.deepEqual(body.intervencion, {
     orden_id: id, autor_id: f.personas.tecnico.id, ...cierre,
-    repuestos_usados: 'Un rodamiento', registrada_en: new Date(AHORA).toISOString(),
+    repuestos_usados: 'Un rodamiento', repuestos_consumidos: [], registrada_en: new Date(AHORA).toISOString(),
   });
   assert.deepEqual((await f.api.get(ruta).set('Authorization', admin).expect(200)).body, body);
 });
@@ -273,8 +273,9 @@ test('Un error antes de confirmar el cierre revierte la intervención y permite 
   await f.api.put(ruta + '/cierre').set('Authorization', tecnico).send(cierre).expect(200);
 });
 
-test('Una orden histórica cerrada conserva su estado sin inventar una intervención', async (t) => {
+test('Los cierres históricos conservan sus datos previos sin crear consumos nuevos', async (t) => {
   let id;
+  let idConIntervencion;
   const f = await fixture(t, (datos, personas, equipo) => {
     const fallas = new Fallas(datos);
     const falla = fallas.crear({ equipo_id: equipo.id, descripcion: 'Falla histórica.' }, personas.tecnico.id, AHORA);
@@ -287,12 +288,30 @@ test('Una orden histórica cerrada conserva su estado sin inventar una intervenc
         estado TEXT NOT NULL DEFAULT 'PENDIENTE'
           CHECK (estado IN ('PENDIENTE', 'EN_PROGRESO', 'CERRADA'))
       );
+      CREATE TABLE intervenciones (
+        orden_id INTEGER PRIMARY KEY REFERENCES ordenes_trabajo(id),
+        autor_id INTEGER NOT NULL REFERENCES usuarios(id),
+        diagnostico TEXT NOT NULL,
+        solucion TEXT NOT NULL,
+        duracion_minutos INTEGER NOT NULL,
+        repuestos_usados TEXT,
+        registrada_en TEXT NOT NULL
+      );
     `);
-    const insercion = datos.db.prepare(`
+    const insertarOrden = datos.db.prepare(`
       INSERT INTO ordenes_trabajo (falla_id, tecnico_id, fecha_limite, estado)
       VALUES (?, ?, '2026-11-20', 'CERRADA')
-    `).run(falla.id, personas.tecnico.id);
-    id = Number(insercion.lastInsertRowid);
+    `);
+    id = Number(insertarOrden.run(falla.id, personas.tecnico.id).lastInsertRowid);
+    const otraFalla = fallas.crear({ equipo_id: equipo.id, descripcion: 'Falla con intervención.' }, personas.tecnico.id, AHORA);
+    idConIntervencion = Number(insertarOrden.run(otraFalla.id, personas.tecnico.id).lastInsertRowid);
+    datos.db.prepare(`
+      INSERT INTO intervenciones (orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, registrada_en)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      idConIntervencion, personas.tecnico.id, cierre.diagnostico, cierre.solucion,
+      cierre.duracion_minutos, 'Repuesto legado', new Date(AHORA).toISOString(),
+    );
   });
   const admin = await f.sesion('supervisor');
   const tecnico = await f.sesion('tecnico');
@@ -308,4 +327,14 @@ test('Una orden histórica cerrada conserva su estado sin inventar una intervenc
   assert.equal(f.datos.db.prepare('SELECT count(*) AS n FROM intervenciones WHERE orden_id = ?').get(id).n, 0);
   assert.throws(() => f.datos.db.prepare("UPDATE ordenes_trabajo SET estado = 'PENDIENTE' WHERE id = ?").run(id), /inmutable/);
   assert.throws(() => f.datos.db.prepare('DELETE FROM ordenes_trabajo WHERE id = ?').run(id), /inmutable/);
+
+  const rutaConIntervencion = '/ordenes/' + idConIntervencion;
+  const detalle = await f.api.get(rutaConIntervencion).set('Authorization', admin).expect(200);
+  assert(esquema('ordenes', 'OrdenDetalleRespuesta')(detalle.body));
+  assert.equal(detalle.body.intervencion.repuestos_usados, 'Repuesto legado');
+  assert.deepEqual(detalle.body.intervencion.repuestos_consumidos, []);
+  const repetido = await f.api.put(rutaConIntervencion + '/cierre').set('Authorization', tecnico)
+    .send({ ...cierre, repuestos_usados: 'Repuesto legado' }).expect(200);
+  assert.deepEqual(repetido.body, detalle.body);
+  assert.equal(f.datos.db.prepare('SELECT count(*) AS n FROM movimientos_repuestos').get().n, 0);
 });

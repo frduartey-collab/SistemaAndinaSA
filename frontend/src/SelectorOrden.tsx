@@ -18,11 +18,14 @@ type Props<T> = {
   etiqueta: (opcion: T) => string
   detalle?: (opcion: T) => string
   buscar?: boolean
+  etiquetaBusqueda?: string
+  opcionDeshabilitada?: (opcion: T) => boolean
   sinResultados: string
 }
 
 export function SelectorOrden<T extends { id: number }>({
-  titulo, grupo, seleccionado, alElegir, ruta, etiqueta, detalle, buscar, sinResultados,
+  titulo, grupo, seleccionado, alElegir, ruta, etiqueta, detalle, buscar,
+  etiquetaBusqueda = 'Buscar técnico por nombre', opcionDeshabilitada, sinResultados,
 }: Props<T>) {
   const { solicitar } = useAuth()
   const [pagina, setPagina] = useState(1)
@@ -69,7 +72,7 @@ export function SelectorOrden<T extends { id: number }>({
       {buscar && (
         <div className="busqueda-tecnico">
           <div className="campo">
-            <label htmlFor={grupo + '-busqueda'}>Buscar técnico por nombre</label>
+            <label htmlFor={grupo + '-busqueda'}>{etiquetaBusqueda}</label>
             <input id={grupo + '-busqueda'} value={texto} type="search" maxLength={120}
               onChange={(evento) => setTexto(evento.target.value)}
               onKeyDown={(evento) => { if (evento.key === 'Enter') filtrar(evento) }} />
@@ -95,6 +98,7 @@ export function SelectorOrden<T extends { id: number }>({
                 <li key={opcion.id}>
                   <label className="opcion-orden">
                     <input type="radio" name={grupo} value={opcion.id}
+                      disabled={opcionDeshabilitada?.(opcion)}
                       checked={seleccionado?.id === opcion.id} onChange={() => alElegir(opcion)} />
                     <span>
                       <strong>{etiqueta(opcion)}</strong>

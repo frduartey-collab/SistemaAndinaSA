@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Manufacturas Andina — Órdenes de trabajo
-  version: 0.2.0
+  version: 0.3.0
   description: |
     HU-04 y HU-05 fase 1. Supervisor y Jefatura crean y consultan todas las
     órdenes. El técnico consulta e inicia sus asignaciones y registra una
@@ -140,10 +140,11 @@ paths:
       summary: Registrar una intervención y cerrar la orden en un solo paso
       description: |
         Solo el técnico asignado puede cerrar una orden EN_PROGRESO. El
-        registro y el cambio a CERRADA son atómicos. Repetir la misma solicitud
-        después de recortar espacios devuelve el cierre existente. Un cierre
-        anterior, con datos diferentes o sin intervención histórica, permanece
-        intacto. Los repuestos se registran como texto.
+        registro, el cambio a CERRADA y el consumo de inventario son atómicos.
+        Repetir la misma solicitud, con espacios recortados y los mismos
+        consumos en cualquier orden, devuelve el cierre existente. Las
+        intervenciones con texto previo conservan ese texto y devuelven una
+        lista vacía de consumos si no se vinculó inventario.
       parameters:
         - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
       requestBody:
@@ -157,10 +158,18 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OrdenDetalleRespuesta" }
-        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "400":
+          description: DATOS_INVALIDOS o STOCK_INSUFICIENTE. Si falta stock, el mensaje identifica el repuesto y las unidades disponibles.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
         "401": { $ref: "#/components/responses/NoAutorizado" }
         "403": { $ref: "#/components/responses/SinPermiso" }
-        "404": { $ref: "#/components/responses/OrdenNoEncontrada" }
+        "404":
+          description: ORDEN_NO_ENCONTRADA o REPUESTO_NO_ENCONTRADO. La orden no es visible para el técnico o uno de los repuestos no está vigente.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
         "409":
           description: TRANSICION_ORDEN_INVALIDA u ORDEN_YA_CERRADA.
           content:
@@ -248,6 +257,22 @@ components:
       type: integer
       minimum: 1
       maximum: 9007199254740991
+    RepuestoConsumoSolicitud:
+      type: object
+      additionalProperties: false
+      required: [repuesto_id, cantidad]
+      properties:
+        repuesto_id: { $ref: "#/components/schemas/Id" }
+        cantidad: { $ref: "#/components/schemas/Id" }
+    RepuestoConsumidoRespuesta:
+      type: object
+      additionalProperties: false
+      required: [repuesto_id, codigo, nombre, cantidad]
+      properties:
+        repuesto_id: { $ref: "#/components/schemas/Id" }
+        codigo: { type: string, minLength: 1, maxLength: 60 }
+        nombre: { type: string, minLength: 1, maxLength: 150 }
+        cantidad: { $ref: "#/components/schemas/Id" }
     OrdenCierreSolicitud:
       type: object
       additionalProperties: false
@@ -257,10 +282,16 @@ components:
         solucion: { $ref: "#/components/schemas/TextoIntervencion" }
         duracion_minutos: { $ref: "#/components/schemas/DuracionMinutos" }
         repuestos_usados: { $ref: "#/components/schemas/TextoRepuestos" }
+        repuestos_consumidos:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items: { $ref: "#/components/schemas/RepuestoConsumoSolicitud" }
+          description: Un registro por repuesto_id. Si se omite, se interpreta como una lista vacía.
     IntervencionRespuesta:
       type: object
       additionalProperties: false
-      required: [orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, registrada_en]
+      required: [orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, repuestos_consumidos, registrada_en]
       properties:
         orden_id: { $ref: "#/components/schemas/Id" }
         autor_id: { $ref: "#/components/schemas/Id" }
@@ -271,6 +302,11 @@ components:
           oneOf:
             - { $ref: "#/components/schemas/TextoRepuestos" }
             - { type: "null" }
+        repuestos_consumidos:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/RepuestoConsumidoRespuesta" }
+          description: Fotografía del código y nombre al consumir. Ordenada por repuesto_id.
         registrada_en: { type: string, format: date-time }
     DatosOrden:
       type: object

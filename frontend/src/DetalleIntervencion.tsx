@@ -101,9 +101,25 @@ function Resumen({ orden }: { orden: OrdenDetalleRespuesta }) {
             <dd>{intervencion.solucion}</dd>
           </div>
           <div className="intervencion-texto">
-            <dt>Repuestos usados</dt>
-            <dd>{intervencion.repuestos_usados ?? 'Sin repuestos registrados.'}</dd>
+            <dt>Repuestos consumidos</dt>
+            <dd>
+              {intervencion.repuestos_consumidos.length > 0 ? (
+                <ul className="resumen-consumos">
+                  {intervencion.repuestos_consumidos.map((repuesto) => (
+                    <li key={repuesto.repuesto_id}>
+                      <strong>{repuesto.codigo}</strong> · {repuesto.nombre} · {repuesto.cantidad} {repuesto.cantidad === 1 ? 'unidad' : 'unidades'}
+                    </li>
+                  ))}
+                </ul>
+              ) : 'Sin consumos de inventario registrados.'}
+            </dd>
           </div>
+          {intervencion.repuestos_usados && (
+            <div className="intervencion-texto">
+              <dt>Notas de repuestos anteriores</dt>
+              <dd>{intervencion.repuestos_usados}</dd>
+            </div>
+          )}
         </dl>
       ) : (
         <p className="intervencion-ausente">

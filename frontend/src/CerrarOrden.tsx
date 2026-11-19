@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import type { OrdenCierreSolicitud, OrdenDetalleRespuesta, OrdenRespuesta } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
+import { ConsumosIntervencion, type BorradorConsumo } from './ConsumosIntervencion'
 import { Dialogo } from './Dialogo'
 import { Icono } from './Icono'
 import { ErrorApi, mensajeError } from './api'
@@ -20,7 +21,8 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
   const [diagnostico, setDiagnostico] = useState('')
   const [solucion, setSolucion] = useState('')
   const [duracion, setDuracion] = useState('')
-  const [repuestos, setRepuestos] = useState('')
+  const [consumos, setConsumos] = useState<BorradorConsumo[]>([])
+  const [mostrarErroresConsumo, setMostrarErroresConsumo] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const enviando = useRef(false)
   const [error, setError] = useState('')
@@ -28,6 +30,10 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
 
   const puedeCerrar = estado.tipo === 'activa' && estado.usuario.rol === 'TECNICO' &&
     estado.usuario.id === orden.tecnico_id && orden.estado === 'EN_PROGRESO'
+  const grupoConsumos = campos + '-consumo'
+  const cantidadesInvalidas = consumos
+    .filter(({ cantidad }) => !Number.isSafeInteger(Number(cantidad)) || Number(cantidad) < 1)
+    .map(({ repuesto }) => repuesto.id)
 
   async function guardar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
@@ -35,7 +41,6 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
 
     const textoDiagnostico = diagnostico.trim()
     const textoSolucion = solucion.trim()
-    const textoRepuestos = repuestos.trim()
     const minutos = Number(duracion)
     const invalidos: typeof errores = {}
 
@@ -47,9 +52,14 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
 
     setError('')
     setErrores(invalidos)
+    setMostrarErroresConsumo(true)
     const primerCampo = Object.keys(invalidos)[0]
     if (primerCampo) {
       document.getElementById(campos + '-' + primerCampo)?.focus()
+      return
+    }
+    if (cantidadesInvalidas.length > 0) {
+      document.getElementById(grupoConsumos + '-cantidad-' + cantidadesInvalidas[0])?.focus()
       return
     }
 
@@ -59,7 +69,10 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
       diagnostico: textoDiagnostico,
       solucion: textoSolucion,
       duracion_minutos: minutos,
-      ...(textoRepuestos ? { repuestos_usados: textoRepuestos } : {}),
+      repuestos_consumidos: consumos.map(({ repuesto, cantidad }) => ({
+        repuesto_id: repuesto.id,
+        cantidad: Number(cantidad),
+      })),
     }
 
     try {
@@ -111,11 +124,8 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
               aria-describedby={errores.duracion_minutos ? campos + '-error-duracion' : undefined} />
             {errores.duracion_minutos && <p id={campos + '-error-duracion'} className="error-campo" role="alert">{errores.duracion_minutos}</p>}
           </div>
-          <div className="campo">
-            <label htmlFor={campos + '-repuestos'}>Repuestos usados (opcional)</label>
-            <textarea id={campos + '-repuestos'} rows={2} maxLength={LIMITE_TEXTO}
-              value={repuestos} onChange={(evento) => setRepuestos(evento.target.value)} />
-          </div>
+          <ConsumosIntervencion grupo={grupoConsumos} consumos={consumos} alCambiar={setConsumos}
+            cantidadesInvalidas={mostrarErroresConsumo ? cantidadesInvalidas : []} />
         </fieldset>
         <div className="dialogo-acciones">
           <button type="button" className="boton boton-secundario" onClick={alCerrar} disabled={guardando}>Cancelar</button>

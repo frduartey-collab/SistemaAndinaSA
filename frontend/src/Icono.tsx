@@ -1,6 +1,7 @@
 const trazos = {
   inicio: 'M3 10 12 3l9 7m-2-2v13h-5v-6h-4v6H5V8',
   equipo: 'M5 7h11v11H5zM2 10h3m-3 5h3m6-8V4m-3 0h6m2 6h3l2 2v4h-5m-8 2v2m6-2v2m-6-8 2 2 3-4',
+  inventario: 'M3 8l9 4 9-4M12 12v9M3 8v9l9 4 9-4V8l-9-4zM8 6l9 4',
   falla: 'M10.4 4.4a1.8 1.8 0 0 1 3.2 0l7.6 13.1a1.8 1.8 0 0 1-1.6 2.7H4.4a1.8 1.8 0 0 1-1.6-2.7zM13 8l-4 5h3l-1 4 4-5h-3z',
   orden: 'M7 4H5v17h14V4h-2M9 3h6v4H9zM8 11h2m2 0h4m-8 4h2m2 0h4m-8 3h2m2 0h4',
   cuenta: 'M15 16a6 6 0 0 0-12 0v3h12m3-11v8m-4-4h8M12 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',

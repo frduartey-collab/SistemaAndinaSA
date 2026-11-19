@@ -18,7 +18,8 @@ export function mensajeError(error: unknown, alternativa: string) {
 
 export async function llamarApi<T>(
   ruta: "/auth/login" | "/auth/register" | "/auth/me" | "/auth/logout" | "/activos" | `/activos?${string}` | `/activos/${number}` | "/fallas" | `/fallas?${string}`
-    | "/ordenes" | `/ordenes?${string}` | `/ordenes/${number}` | `/ordenes/${number}/estado` | `/ordenes/${number}/cierre` | `/ordenes/tecnicos?${string}`,
+    | "/ordenes" | `/ordenes?${string}` | `/ordenes/${number}` | `/ordenes/${number}/estado` | `/ordenes/${number}/cierre` | `/ordenes/tecnicos?${string}`
+    | "/repuestos" | `/repuestos?${string}` | `/repuestos/${number}` | `/repuestos/${number}/movimientos`,
   opciones: RequestInit = {},
   token?: string,
 ): Promise<T> {

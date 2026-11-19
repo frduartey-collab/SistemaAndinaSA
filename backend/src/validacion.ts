@@ -3,10 +3,10 @@ import { createRequire } from 'node:module';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv';
 import { parseDocument } from 'yaml';
-import type { ConsultaActivos, ConsultaFallas, ConsultaOrdenes, ConsultaTecnicos } from './dominio.js';
+import type { ConsultaActivos, ConsultaFallas, ConsultaOrdenes, ConsultaRepuestos, ConsultaTecnicos } from './dominio.js';
 import { ErrorAPI } from './errores.js';
 
-type Contrato = 'auth' | 'activos' | 'fallas' | 'ordenes';
+type Contrato = 'auth' | 'activos' | 'fallas' | 'ordenes' | 'repuestos';
 interface Documento { components: { schemas: Record<string, object> } }
 const ajv = new Ajv2020({ strict: false, strictNumbers: true, allErrors: true });
 const addFormats = createRequire(import.meta.url)('ajv-formats') as (instance: Ajv2020) => void;
@@ -89,4 +89,8 @@ export function consultaOrdenes(query: Record<string, unknown>): ConsultaOrdenes
 
 export function consultaTecnicos(query: Record<string, unknown>): ConsultaTecnicos {
   return validarConsulta<ConsultaTecnicos>('ordenes', 'ConsultaTecnicos', query);
+}
+
+export function consultaRepuestos(query: Record<string, unknown>): ConsultaRepuestos {
+  return validarConsulta<ConsultaRepuestos>('repuestos', 'ConsultaRepuestos', query);
 }

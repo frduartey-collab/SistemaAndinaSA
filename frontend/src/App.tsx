@@ -6,6 +6,7 @@ import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router'
 import { useAuth } from './AuthContext'
 import { CatalogoEquipos } from './CatalogoEquipos'
 import { InicioTrabajador } from './InicioTrabajador'
+import { InventarioBodega } from './InventarioBodega'
 import { LandingPlanes } from './LandingPlanes'
 import { Login } from './Login'
 import { Registro } from './Registro'
@@ -15,9 +16,10 @@ import type { BorradorEquipo } from './FormularioEquipo'
 import { etiquetasRol } from './activos'
 import { mensajeError } from './api'
 
-function LayoutProtegido({ alSalir, puedeVerOrdenes }: {
+function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
   alSalir: () => void
   puedeVerOrdenes: boolean
+  puedeVerInventario: boolean
 }) {
   const { estado, puedeLeer, puedeEscribir, cerrarSesion } = useAuth()
   const [saliendo, setSaliendo] = useState(false)
@@ -46,15 +48,22 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes }: {
       <header className="cabecera">
         <div className="cabecera-interior">
           <MarcaSigem />
-          {puedeLeer && (
+          {(puedeLeer || puedeVerInventario) && (
             <nav className="navegacion-sigem" aria-label="Secciones de SIGEM">
               {estado.usuario.rol === 'TRABAJADOR' && (
                 <NavLink className="enlace-nav" to="/inicio" end><span className="icono-nav"><Icono nombre="inicio" /></span>Inicio</NavLink>
               )}
-              <NavLink className="enlace-nav" to="/equipos"><span className="icono-nav"><Icono nombre="equipo" /></span>Equipos</NavLink>
-              <NavLink className="enlace-nav" to="/fallas"><span className="icono-nav"><Icono nombre="falla" /></span>Fallas</NavLink>
+              {puedeLeer && (
+                <>
+                  <NavLink className="enlace-nav" to="/equipos"><span className="icono-nav"><Icono nombre="equipo" /></span>Equipos</NavLink>
+                  <NavLink className="enlace-nav" to="/fallas"><span className="icono-nav"><Icono nombre="falla" /></span>Fallas</NavLink>
+                </>
+              )}
               {puedeVerOrdenes && (
                 <NavLink className="enlace-nav" to="/ordenes"><span className="icono-nav"><Icono nombre="orden" /></span>Órdenes</NavLink>
+              )}
+              {puedeVerInventario && (
+                <NavLink className="enlace-nav" to="/inventario"><span className="icono-nav"><Icono nombre="inventario" /></span>Inventario</NavLink>
               )}
               {puedeEscribir && <NavLink className="enlace-nav" to="/registro"><span className="icono-nav"><Icono nombre="cuenta" /></span>Crear cuenta</NavLink>}
             </nav>
@@ -102,14 +111,18 @@ function Sistema() {
   const usuarioId = estado.tipo === 'activa' ? estado.usuario.id : null
   const rol = estado.tipo === 'activa' ? estado.usuario.rol : null
   const puedeVerOrdenes = rol === 'TECNICO' || puedeEscribir
-  const destinoInicio = rol === 'TECNICO' ? '/ordenes' : '/equipos'
+  const puedeVerInventario = rol === 'BODEGA' || rol === 'JEFATURA'
+  let destinoInicio = '/equipos'
+  if (rol === 'TECNICO') destinoInicio = '/ordenes'
+  if (rol === 'BODEGA') destinoInicio = '/inventario'
   const borradorDeLaCuenta = borrador?.usuarioId === usuarioId ? borrador.datos : undefined
 
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Registro />} />
-      <Route element={<LayoutProtegido alSalir={() => setBorrador(null)} puedeVerOrdenes={puedeVerOrdenes} />}>
+      <Route element={<LayoutProtegido alSalir={() => setBorrador(null)} puedeVerOrdenes={puedeVerOrdenes}
+        puedeVerInventario={puedeVerInventario} />}>
         <Route path="/inicio" element={rol === 'TRABAJADOR'
           ? <InicioTrabajador />
           : <Navigate to={destinoInicio} replace />} />
@@ -127,6 +140,12 @@ function Sistema() {
         <Route path="/ordenes" element={puedeVerOrdenes
           ? <OrdenesTrabajo />
           : <Navigate to={puedeLeer ? '/fallas' : '/sin-acceso'} replace />} />
+        <Route path="/inventario" element={puedeVerInventario ? <InventarioBodega key={usuarioId} /> : (
+          <section className="panel estado-pagina">
+            <h1>Acceso restringido</h1>
+            <p>Inventario está disponible para Bodega y Jefatura.</p>
+          </section>
+        )} />
         <Route
           path="/sin-acceso"
           element={puedeLeer ? <Navigate to="/equipos" replace /> : (

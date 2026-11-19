@@ -2,9 +2,18 @@ import type { Datos } from './datos.js';
 import type {
   ConsultaOrdenes, ConsultaTecnicos, IntervencionRespuesta, OrdenCierreSolicitud,
   OrdenCrearSolicitud, OrdenDetalleRespuesta, OrdenEstadoSolicitud, OrdenRespuesta,
-  PaginaOrdenes, PaginaTecnicos, TecnicoResumen,
+  PaginaOrdenes, PaginaTecnicos, RepuestoConsumidoRespuesta, RepuestoConsumoSolicitud, TecnicoResumen,
 } from './dominio.js';
 import { ErrorAPI } from './errores.js';
+import type { InventarioRepuestos } from './repuestos.js';
+
+type FilaIntervencion = Omit<IntervencionRespuesta, 'repuestos_consumidos'>;
+
+function mismoConsumo(guardado: RepuestoConsumidoRespuesta[], solicitado: RepuestoConsumoSolicitud[]): boolean {
+  return guardado.length === solicitado.length && guardado.every((repuesto, posicion) =>
+    repuesto.repuesto_id === solicitado[posicion].repuesto_id && repuesto.cantidad === solicitado[posicion].cantidad,
+  );
+}
 
 const SELECCION = `
   SELECT o.id, o.falla_id, o.tecnico_id, u.nombre AS tecnico_nombre,
@@ -21,7 +30,7 @@ const FORMATO_CHILE = new Intl.DateTimeFormat('sv-SE', {
 });
 
 export class OrdenesTrabajo {
-  constructor(private readonly datos: Datos) {
+  constructor(private readonly datos: Datos, private readonly inventario: InventarioRepuestos) {
     this.datos.db.exec(`
       CREATE TABLE IF NOT EXISTS ordenes_trabajo (
         id INTEGER PRIMARY KEY,
@@ -69,6 +78,26 @@ export class OrdenesTrabajo {
       CREATE TRIGGER IF NOT EXISTS impedir_borrado_orden_cerrada
       BEFORE DELETE ON ordenes_trabajo WHEN OLD.estado = 'CERRADA'
       BEGIN SELECT RAISE(ABORT, 'La orden cerrada es inmutable.'); END;
+      CREATE TABLE IF NOT EXISTS orden_repuesto (
+        orden_id INTEGER NOT NULL REFERENCES intervenciones(orden_id),
+        repuesto_id INTEGER NOT NULL REFERENCES repuestos(id),
+        codigo TEXT NOT NULL,
+        nombre TEXT NOT NULL,
+        cantidad INTEGER NOT NULL
+          CHECK (typeof(cantidad) = 'integer' AND cantidad BETWEEN 1 AND 9007199254740991),
+        PRIMARY KEY (orden_id, repuesto_id),
+        FOREIGN KEY (repuesto_id, orden_id) REFERENCES movimientos_repuestos(repuesto_id, orden_id)
+      );
+      CREATE TRIGGER IF NOT EXISTS validar_orden_para_consumo
+      BEFORE INSERT ON orden_repuesto
+      WHEN NOT EXISTS (SELECT 1 FROM ordenes_trabajo WHERE id = NEW.orden_id AND estado = 'EN_PROGRESO')
+      BEGIN SELECT RAISE(ABORT, 'El consumo requiere una orden en progreso.'); END;
+      CREATE TRIGGER IF NOT EXISTS impedir_edicion_consumo
+      BEFORE UPDATE ON orden_repuesto
+      BEGIN SELECT RAISE(ABORT, 'El consumo es inmutable.'); END;
+      CREATE TRIGGER IF NOT EXISTS impedir_borrado_consumo
+      BEFORE DELETE ON orden_repuesto
+      BEGIN SELECT RAISE(ABORT, 'El consumo es inmutable.'); END;
     `);
   }
 
@@ -161,13 +190,18 @@ export class OrdenesTrabajo {
     const diagnostico = input.diagnostico.trim();
     const solucion = input.solucion.trim();
     const repuestos = input.repuestos_usados?.trim() || null;
+    const consumos = [...(input.repuestos_consumidos ?? [])].sort((a, b) => a.repuesto_id - b.repuesto_id);
+    if (new Set(consumos.map(consumo => consumo.repuesto_id)).size !== consumos.length) {
+      throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'Registra una sola cantidad por repuesto en la intervención.');
+    }
 
     return this.datos.transaccion(() => {
       const orden = this.obtener(id, tecnicoId);
       if (orden.estado === 'CERRADA') {
         const intervencion = this.obtenerIntervencion(id);
         if (intervencion?.diagnostico === diagnostico && intervencion.solucion === solucion
-          && intervencion.duracion_minutos === input.duracion_minutos && intervencion.repuestos_usados === repuestos) {
+          && intervencion.duracion_minutos === input.duracion_minutos && intervencion.repuestos_usados === repuestos
+          && mismoConsumo(intervencion.repuestos_consumidos, consumos)) {
           return { ...orden, intervencion };
         }
         throw new ErrorAPI(409, 'ORDEN_YA_CERRADA', 'La orden ya está cerrada y su intervención no puede modificarse.');
@@ -176,7 +210,7 @@ export class OrdenesTrabajo {
         throw new ErrorAPI(409, 'TRANSICION_ORDEN_INVALIDA', 'Solo se puede cerrar una orden en progreso.');
       }
 
-      const intervencion: IntervencionRespuesta = {
+      const intervencion: FilaIntervencion = {
         orden_id: id,
         autor_id: tecnicoId,
         diagnostico,
@@ -190,17 +224,32 @@ export class OrdenesTrabajo {
           (orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, registrada_en)
         VALUES (@orden_id, @autor_id, @diagnostico, @solucion, @duracion_minutos, @repuestos_usados, @registrada_en)
       `).run(intervencion);
+      const guardarConsumo = this.datos.db.prepare(`
+        INSERT INTO orden_repuesto (orden_id, repuesto_id, codigo, nombre, cantidad)
+        VALUES (@orden_id, @repuesto_id, @codigo, @nombre, @cantidad)
+      `);
+      const repuestosConsumidos = consumos.map(consumo => {
+        const repuesto = this.inventario.consumirEnTransaccion(consumo, id, tecnicoId, ahora);
+        guardarConsumo.run({ orden_id: id, ...repuesto });
+        return repuesto;
+      });
       this.datos.db.prepare("UPDATE ordenes_trabajo SET estado = 'CERRADA' WHERE id = ?").run(id);
       this.datos.auditar(tecnicoId, 'ORDEN_CERRADA_CON_INTERVENCION', id, ahora);
-      return { ...orden, estado: 'CERRADA', intervencion };
+      return { ...orden, estado: 'CERRADA', intervencion: { ...intervencion, repuestos_consumidos: repuestosConsumidos } };
     });
   }
 
   private obtenerIntervencion(id: number): IntervencionRespuesta | null {
-    return this.datos.db.prepare<[number], IntervencionRespuesta>(`
+    const intervencion = this.datos.db.prepare<[number], FilaIntervencion>(`
       SELECT orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, registrada_en
       FROM intervenciones WHERE orden_id = ?
-    `).get(id) ?? null;
+    `).get(id);
+    if (!intervencion) return null;
+    const repuestos = this.datos.db.prepare<[number], RepuestoConsumidoRespuesta>(`
+      SELECT repuesto_id, codigo, nombre, cantidad
+      FROM orden_repuesto WHERE orden_id = ? ORDER BY repuesto_id
+    `).all(id);
+    return { ...intervencion, repuestos_consumidos: repuestos };
   }
 
   private obtener(id: number, tecnicoId?: number): OrdenRespuesta {

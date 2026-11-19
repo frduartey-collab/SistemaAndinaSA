@@ -100,3 +100,13 @@ Pasaron 57 pruebas de backend y la compilación de React. La validación cubrió
 La ruta pública / presenta Particular a $54.990 CLP al mes, con hasta 50 equipos, una sede, tres cuentas y activación sin costo. Empresa presenta $600.000 CLP al mes y $2.500.000 CLP por única vez para la puesta en marcha. Los valores se muestran antes de impuestos y las capacidades futuras aparecen como En desarrollo.
 
 Seleccionar plan abre un resumen con acceso a /login. La contratación y los pagos corresponden a una etapa posterior. El inicio protegido pasa a /inicio y conserva los destinos por rol. Se verificaron la compilación del frontend, la selección en Chromium a 390 px y el ingreso de Trabajador y Técnico.
+
+## Inventario de bodega y consumo de repuestos
+
+Bodega y Jefatura pueden crear y editar repuestos, gestionar entradas y salidas, y dar de baja fichas sin stock. Técnico puede consultar repuestos para sus intervenciones. El stock actual cambia mediante movimientos y las existencias por debajo del mínimo se indican en el catálogo.
+
+Al cerrar una orden, el técnico puede indicar los repuestos y cantidades utilizados. La transacción de SQLite registra la intervención, los movimientos, el consumo en orden_repuesto y el estado CERRADA. El cierre con existencias insuficientes devuelve 400 STOCK_INSUFICIENTE y revierte todas las escrituras. Una repetición idéntica devuelve el cierre guardado. El resumen conserva el nombre y código registrados al cerrar y las notas de intervenciones anteriores.
+
+El contrato de repuestos describe el catálogo, la baja lógica y los movimientos. El contrato de órdenes define los consumos del cierre. El [plan de Inventario](../plans/2026-11-19-inventario-bodega.md) documenta las reglas y los casos verificados.
+
+Pasaron 61 pruebas de backend y validaron 23 operaciones OpenAPI. La compilación del frontend pasó. Chromium comprobó el alta y los movimientos con Bodega, el aviso de stock bajo, el rechazo y reintento tras reponer existencias, el detalle del consumo y el bloqueo del reenvío manual cuando no se pudo confirmar un movimiento.
