@@ -70,7 +70,7 @@ test('Crear orden exige administrador, técnico activo y fecha civil válida. La
   await f.api.post('/ordenes').set('Authorization', admin).send({ ...datos, fecha_limite: '2027-02-30' }).expect(400);
   await f.api.post('/ordenes').set('Authorization', admin).send({ ...datos, falla_id: 900 }).expect(404);
 
-  for (const tecnicoId of [f.personas.bodega.id, f.personas.inactivo.id, 900]) {
+  for (const tecnicoId of [f.personas.bodega.id, f.personas.trabajador.id, f.personas.inactivo.id, 900]) {
     const { body } = await f.api.post('/ordenes').set('Authorization', admin)
       .send({ ...datos, tecnico_id: tecnicoId }).expect(409);
     assert.equal(body.codigo, 'TECNICO_NO_DISPONIBLE');
@@ -108,8 +108,13 @@ test('Listado y cambios de estado se limitan al técnico asignado o un administr
   assert.equal((await f.api.get('/ordenes').set('Authorization', admin).expect(200)).body.total, 1);
   for (const rol of ['bodega', 'trabajador']) {
     const token = await f.sesion(rol);
-    await f.api.get('/ordenes').set('Authorization', token).expect(403);
-    await f.api.patch(url).set('Authorization', token).send({ estado: 'EN_PROGRESO' }).expect(403);
+    for (const respuesta of [
+      await f.api.get('/ordenes?solo_abiertas=true').set('Authorization', token).expect(403),
+      await f.api.get('/ordenes/tecnicos').set('Authorization', token).expect(403),
+      await f.api.post('/ordenes').set('Authorization', token)
+        .send({ falla_id: falla.id, tecnico_id: f.personas.tecnico.id, fecha_limite: '2026-11-20' }).expect(403),
+      await f.api.patch(url).set('Authorization', token).send({ estado: 'EN_PROGRESO' }).expect(403),
+    ]) assert.equal(respuesta.body.codigo, 'SIN_PERMISO');
   }
   const oculto = await f.api.patch(url).set('Authorization', otro).send({ estado: 'EN_PROGRESO' }).expect(404);
   assert.equal(oculto.body.codigo, 'ORDEN_NO_ENCONTRADA');
@@ -140,4 +145,38 @@ test('Selector expone solo técnicos activos y excluye fallas de equipos dados d
   assert.equal((await f.api.get('/fallas').set('Authorization', admin).expect(200)).body.total, 1);
   await f.api.post('/ordenes').set('Authorization', admin)
     .send({ falla_id: falla.id, tecnico_id: f.personas.tecnico.id, fecha_limite: '2026-11-20' }).expect(404);
+});
+
+test('Las órdenes abiertas se filtran antes de paginar y respetan al técnico asignado', async (t) => {
+  const f = await fixture(t);
+  const admin = await f.sesion('supervisor');
+  const tecnico = await f.sesion('tecnico');
+  const otro = await f.sesion('otro');
+
+  async function crear(tecnicoId) {
+    const falla = await f.falla(tecnico);
+    const { body } = await f.api.post('/ordenes').set('Authorization', admin)
+      .send({ falla_id: falla.id, tecnico_id: tecnicoId, fecha_limite: '2026-11-20' }).expect(201);
+    return body.id;
+  }
+
+  const pendiente = await crear(f.personas.tecnico.id);
+  const ultima = await crear(f.personas.tecnico.id);
+  const ajena = await crear(f.personas.otro.id);
+  const url = '/ordenes/' + ultima + '/estado';
+  const abiertas = '/ordenes?solo_abiertas=true&size=1';
+
+  await f.api.patch(url).set('Authorization', tecnico).send({ estado: 'EN_PROGRESO' }).expect(200);
+  const enProgreso = await f.api.get(abiertas).set('Authorization', tecnico).expect(200);
+  assert.equal(enProgreso.body.items[0].id, ultima);
+  assert.equal(enProgreso.body.items[0].estado, 'EN_PROGRESO');
+  assert.equal(enProgreso.body.total, 2);
+
+  await f.api.patch(url).set('Authorization', tecnico).send({ estado: 'CERRADA' }).expect(200);
+  const primera = await f.api.get(abiertas).set('Authorization', tecnico).expect(200);
+  assert.deepEqual(primera.body.items.map(({ id }) => id), [pendiente]);
+  assert.equal(primera.body.total, 1);
+  assert.deepEqual((await f.api.get(abiertas).set('Authorization', otro).expect(200)).body.items.map(({ id }) => id), [ajena]);
+  assert.equal((await f.api.get('/ordenes?solo_abiertas=false').set('Authorization', tecnico).expect(200)).body.total, 2);
+  await f.api.get('/ordenes?solo_abiertas=1').set('Authorization', tecnico).expect(400);
 });

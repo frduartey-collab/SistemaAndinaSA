@@ -5,6 +5,7 @@ import { AjustesInterfaz } from './AjustesInterfaz'
 import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router'
 import { useAuth } from './AuthContext'
 import { CatalogoEquipos } from './CatalogoEquipos'
+import { InicioTrabajador } from './InicioTrabajador'
 import { Login } from './Login'
 import { Registro } from './Registro'
 import { ReportarFalla } from './ReportarFalla'
@@ -13,7 +14,10 @@ import type { BorradorEquipo } from './FormularioEquipo'
 import { etiquetasRol } from './activos'
 import { mensajeError } from './api'
 
-function LayoutProtegido({ alSalir }: { alSalir: () => void }) {
+function LayoutProtegido({ alSalir, puedeVerOrdenes }: {
+  alSalir: () => void
+  puedeVerOrdenes: boolean
+}) {
   const { estado, puedeLeer, puedeEscribir, cerrarSesion } = useAuth()
   const [saliendo, setSaliendo] = useState(false)
   const [error, setError] = useState('')
@@ -43,9 +47,12 @@ function LayoutProtegido({ alSalir }: { alSalir: () => void }) {
           <MarcaSigem />
           {puedeLeer && (
             <nav className="navegacion-sigem" aria-label="Secciones de SIGEM">
+              {estado.usuario.rol === 'TRABAJADOR' && (
+                <NavLink className="enlace-nav" to="/" end><span className="icono-nav"><Icono nombre="inicio" /></span>Inicio</NavLink>
+              )}
               <NavLink className="enlace-nav" to="/equipos"><span className="icono-nav"><Icono nombre="equipo" /></span>Equipos</NavLink>
               <NavLink className="enlace-nav" to="/fallas"><span className="icono-nav"><Icono nombre="falla" /></span>Fallas</NavLink>
-              {(puedeEscribir || estado.usuario.rol === 'TECNICO') && (
+              {puedeVerOrdenes && (
                 <NavLink className="enlace-nav" to="/ordenes"><span className="icono-nav"><Icono nombre="orden" /></span>Órdenes</NavLink>
               )}
               {puedeEscribir && <NavLink className="enlace-nav" to="/registro"><span className="icono-nav"><Icono nombre="cuenta" /></span>Crear cuenta</NavLink>}
@@ -92,14 +99,19 @@ export default function App() {
   }
 
   const usuarioId = estado.tipo === 'activa' ? estado.usuario.id : null
-  const puedeVerOrdenes = estado.tipo === 'activa' && (puedeEscribir || estado.usuario.rol === 'TECNICO')
+  const rol = estado.tipo === 'activa' ? estado.usuario.rol : null
+  const puedeVerOrdenes = rol === 'TECNICO' || puedeEscribir
+  const destinoInicio = rol === 'TECNICO' ? '/ordenes' : '/equipos'
   const borradorDeLaCuenta = borrador?.usuarioId === usuarioId ? borrador.datos : undefined
 
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/registro" element={<Registro />} />
-      <Route element={<LayoutProtegido alSalir={() => setBorrador(null)} />}>
+      <Route element={<LayoutProtegido alSalir={() => setBorrador(null)} puedeVerOrdenes={puedeVerOrdenes} />}>
+        <Route index element={rol === 'TRABAJADOR'
+          ? <InicioTrabajador />
+          : <Navigate to={destinoInicio} replace />} />
         <Route
           path="/equipos"
           element={puedeLeer && usuarioId !== null ? (
@@ -113,7 +125,7 @@ export default function App() {
         <Route path="/fallas" element={puedeLeer ? <ReportarFalla /> : <Navigate to="/sin-acceso" replace />} />
         <Route path="/ordenes" element={puedeVerOrdenes
           ? <OrdenesTrabajo />
-          : <Navigate to={puedeLeer ? '/equipos' : '/sin-acceso'} replace />} />
+          : <Navigate to={puedeLeer ? '/fallas' : '/sin-acceso'} replace />} />
         <Route
           path="/sin-acceso"
           element={puedeLeer ? <Navigate to="/equipos" replace /> : (
@@ -124,7 +136,7 @@ export default function App() {
           )}
         />
       </Route>
-      <Route path="*" element={<Navigate to="/equipos" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

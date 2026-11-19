@@ -13,8 +13,10 @@ type Vista =
   | { tipo: 'error'; mensaje: string; datos?: PaginaFallas }
   | { tipo: 'lista'; datos: PaginaFallas }
 
-export function ListaFallas() {
+export function ListaFallas({ resumen = false }: { resumen?: boolean } = {}) {
   const { puedeEscribir, solicitar } = useAuth()
+  const puedeAsignar = puedeEscribir && !resumen
+  const tamano = resumen ? 5 : TAMANO
   const [page, setPage] = useState(1)
   const [soloPendientes, setSoloPendientes] = useState(false)
   const [reintentos, setReintentos] = useState(0)
@@ -25,7 +27,7 @@ export function ListaFallas() {
     const controlador = new AbortController()
     const { signal } = controlador
     const filtro = soloPendientes ? '&sin_orden=true' : ''
-    solicitar<PaginaFallas>(`/fallas?page=${page}&size=${TAMANO}${filtro}`, { signal })
+    solicitar<PaginaFallas>(`/fallas?page=${page}&size=${tamano}${filtro}`, { signal })
       .then((respuesta) => {
         if (!signal.aborted) setVista({ tipo: 'lista', datos: respuesta })
       })
@@ -36,20 +38,24 @@ export function ListaFallas() {
       })
 
     return () => controlador.abort()
-  }, [page, reintentos, solicitar, soloPendientes])
+  }, [page, reintentos, solicitar, soloPendientes, tamano])
 
   function cambiarPagina(nueva: number) {
     setVista({ tipo: 'cargando', datos })
     setPage(nueva)
   }
 
-  const paginas = Math.max(1, Math.ceil((datos?.total ?? 0) / TAMANO))
+  const paginas = Math.max(1, Math.ceil((datos?.total ?? 0) / tamano))
+
+  let titulo = 'Mis reportes'
+  if (puedeAsignar) titulo = 'Reportes de fallas'
+  if (resumen) titulo = 'Últimas fallas reportadas'
 
   return (
     <section className="panel reportes" aria-labelledby="titulo-lista-fallas">
       <div className="cabecera-listado-fallas">
-        <h2 id="titulo-lista-fallas">{puedeEscribir ? 'Reportes de fallas' : 'Mis reportes'}</h2>
-        {puedeEscribir && (
+        <h2 id="titulo-lista-fallas">{titulo}</h2>
+        {puedeAsignar && (
           <button className="boton boton-secundario" type="button" aria-pressed={soloPendientes}
             disabled={vista.tipo === 'cargando'} onClick={() => {
               setVista({ tipo: 'cargando' })
@@ -83,9 +89,9 @@ export function ListaFallas() {
                 </div>
                 <p className="descripcion-falla">{falla.descripcion}</p>
                 <p className="ayuda">
-                  {mostrarFecha(falla.fecha_reporte)} · Reportada{puedeEscribir ? ' por ' + falla.usuario_nombre : ''}
+                  {mostrarFecha(falla.fecha_reporte)} · Reportada{puedeAsignar ? ' por ' + falla.usuario_nombre : ''}
                 </p>
-                {puedeEscribir && soloPendientes && vista.tipo === 'lista' && (
+                {puedeAsignar && soloPendientes && vista.tipo === 'lista' && (
                   <Link className="boton boton-secundario crear-desde-falla" to="/ordenes" state={{ falla }}>
                     <Icono nombre="ordenNueva" />
                     Crear orden
@@ -94,7 +100,12 @@ export function ListaFallas() {
               </li>
             ))}
           </ul>
-          {paginas > 1 && (
+          {resumen && paginas > 1 && (
+            <Link className="boton boton-secundario" to="/fallas">
+              <Icono nombre="falla" /> Ver todos mis reportes
+            </Link>
+          )}
+          {!resumen && paginas > 1 && (
             <nav className="paginacion" aria-label="Paginación de fallas">
               <p>Página {datos.page} de {paginas}</p>
               <div>

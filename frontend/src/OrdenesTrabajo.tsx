@@ -20,7 +20,10 @@ const FORMATO_FECHA = new Intl.DateTimeFormat('es-CL', { timeZone: 'UTC', dateSt
 const TAMANO = 20
 
 export function OrdenesTrabajo() {
-  const { solicitar, puedeEscribir } = useAuth()
+  const { estado, solicitar, puedeEscribir } = useAuth()
+  const esTecnico = estado.tipo === 'activa' && estado.usuario.rol === 'TECNICO'
+  const [mostrarTodas, setMostrarTodas] = useState(false)
+  const soloAbiertas = esTecnico && !mostrarTodas
   const { state } = useLocation()
   const navigate = useNavigate()
   const fallaNavegacion = (state as { falla?: FallaRespuesta } | null)?.falla
@@ -38,7 +41,8 @@ export function OrdenesTrabajo() {
   useEffect(() => {
     const controlador = new AbortController()
     const { signal } = controlador
-    solicitar<PaginaOrdenes>(`/ordenes?page=${page}&size=${TAMANO}`, { signal })
+    const filtro = soloAbiertas ? '&solo_abiertas=true' : ''
+    solicitar<PaginaOrdenes>(`/ordenes?page=${page}&size=${TAMANO}${filtro}`, { signal })
       .then((respuesta) => {
         if (!signal.aborted) setVista({ tipo: 'lista', datos: respuesta })
       })
@@ -48,7 +52,7 @@ export function OrdenesTrabajo() {
         }))
       })
     return () => controlador.abort()
-  }, [page, revision, solicitar])
+  }, [page, revision, solicitar, soloAbiertas])
 
   function cerrarCreacion() {
     setCreando(false)
@@ -73,11 +77,17 @@ export function OrdenesTrabajo() {
       const actualizada = await solicitar<OrdenRespuesta>(`/ordenes/${orden.id}/estado`, {
         method: 'PATCH', body: JSON.stringify(body),
       })
-      setVista((anterior) => {
-        if (!anterior.datos) return anterior
-        const items = anterior.datos.items.map((item) => item.id === orden.id ? actualizada : item)
-        return { ...anterior, datos: { ...anterior.datos, items } }
-      })
+      if (soloAbiertas && actualizada.estado === 'CERRADA') {
+        setVista({ tipo: 'cargando' })
+        setPage(1)
+        setRevision((anterior) => anterior + 1)
+      } else {
+        setVista((anterior) => {
+          if (!anterior.datos) return anterior
+          const items = anterior.datos.items.map((item) => item.id === orden.id ? actualizada : item)
+          return { ...anterior, datos: { ...anterior.datos, items } }
+        })
+      }
       setConfirmacion(null)
       setAviso('Orden #' + orden.id + ' actualizada: ' + ESTADOS[actualizada.estado] + '.')
     } catch (fallo) {
@@ -92,11 +102,35 @@ export function OrdenesTrabajo() {
     setPage(nueva)
   }
 
+  function alternarFiltro() {
+    setVista({ tipo: 'cargando' })
+    setPage(1)
+    setMostrarTodas((anterior) => !anterior)
+  }
+
+  let titulo = 'Mis órdenes de trabajo'
+  if (puedeEscribir) titulo = 'Órdenes de trabajo'
+  if (soloAbiertas) titulo = 'Órdenes de trabajo pendientes'
+
+  let mensajeVacio = 'Aún no tienes órdenes asignadas.'
+  if (puedeEscribir) mensajeVacio = 'Aún no hay órdenes de trabajo.'
+  if (soloAbiertas) mensajeVacio = 'No tienes órdenes abiertas.'
+
   const paginas = Math.max(1, Math.ceil((datos?.total ?? 0) / TAMANO))
   return (
     <>
       <div className="encabezado-pagina">
-        <h1>{puedeEscribir ? 'Órdenes de trabajo' : 'Mis órdenes de trabajo'}</h1>
+        <div>
+          <h1>{titulo}</h1>
+          {soloAbiertas && <p className="ayuda">Pendientes de iniciar y en progreso.</p>}
+        </div>
+        {esTecnico && (
+          <button className="boton boton-secundario" type="button" onClick={alternarFiltro}
+            disabled={cambiando !== null}>
+            <Icono nombre="filtros" />
+            {soloAbiertas ? 'Ver todas mis órdenes' : 'Ver órdenes pendientes'}
+          </button>
+        )}
         {puedeEscribir && (
           <button className="boton boton-primario" type="button" onClick={() => { setAviso(''); setCreando(true) }}>
             <Icono nombre="ordenNueva" />
@@ -122,7 +156,7 @@ export function OrdenesTrabajo() {
           <>
             <p className="ayuda" role="status">{datos.total === 1 ? '1 orden' : datos.total + ' órdenes'}</p>
             {vista.tipo === 'lista' && datos.items.length === 0 && (
-              <p className="ayuda">{puedeEscribir ? 'Aún no hay órdenes de trabajo.' : 'Aún no tienes órdenes asignadas.'}</p>
+              <p className="ayuda">{mensajeVacio}</p>
             )}
             <ul className="ordenes-resultados">
               {datos.items.map((orden) => (

@@ -60,6 +60,7 @@ button:disabled { opacity: 0.62; cursor: default; }
   font-weight: 650;
 }
 
+a.boton { text-decoration: none; }
 .boton-primario { color: white; background: var(--acento); }
 .boton-primario:hover:not(:disabled) { background: #0b3354; }
 .boton-secundario { color: var(--tinta); background: white; border-color: var(--borde); }

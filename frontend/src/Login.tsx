@@ -8,7 +8,7 @@ import { ErrorApi, mensajeError } from './api'
 import { normalizarRut } from './rut'
 
 export function Login() {
-  const { estado, puedeLeer, iniciarSesion } = useAuth()
+  const { estado, iniciarSesion } = useAuth()
   const { state } = useLocation()
   const rutRegistrado = typeof state?.rutRegistrado === 'string' ? state.rutRegistrado : ''
   const [rut, setRut] = useState(rutRegistrado)
@@ -22,7 +22,7 @@ export function Login() {
   const campoPassword = useRef<HTMLInputElement>(null)
 
   if (estado.tipo === 'activa') {
-    return <Navigate to={puedeLeer ? '/equipos' : '/sin-acceso'} replace />
+    return <Navigate to="/" replace />
   }
 
   async function ingresar(evento: FormEvent<HTMLFormElement>) {

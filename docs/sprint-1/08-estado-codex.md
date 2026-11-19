@@ -78,3 +78,11 @@ La interfaz de Manufacturas Andina incorpora el nombre SIGEM, una llave pixelada
 El engranaje de Ajustes permite cambiar el tamaño del texto y la densidad del catálogo. El navegador guarda ambas preferencias de la interfaz localmente. El favicon, el manifiesto y los PNG para accesos directos están en el frontend. El ícono de inventario está disponible como recurso gráfico para una próxima etapa.
 
 Validación en Chromium con SQLite en memoria. Se verificaron el login y el registro, los íconos y los tamaños del manifiesto, los ajustes al recargar, el manejo del diálogo con teclado y el catálogo a 390 px. Se recorrieron los flujos de asignación y cambio de estado de órdenes con Supervisor y Técnico, y el acceso restringido de Trabajador.
+
+## Inicio y acceso diferenciados para Trabajador y Técnico
+
+Trabajador inicia en Mi inicio con acceso a Reportar nueva falla y hasta cinco reportes propios, del más reciente al más antiguo. Puede consultar equipos en modo lectura y acceder a Mis reportes. El menú oculta Órdenes y una visita directa a esa ruta redirige a Fallas.
+
+Técnico inicia en Órdenes de trabajo pendientes, que incluye sus asignaciones pendientes y en progreso. Puede avanzar sus estados y consultar también sus órdenes cerradas desde Ver todas mis órdenes. GET /ordenes admite el filtro opcional solo_abiertas, aplicado antes de la paginación. Los controles existentes de HU-04 rechazan las operaciones de Trabajador con 403 SIN_PERMISO e impiden asignarle una orden.
+
+Validación. Los cuatro contratos OpenAPI validaron 15 operaciones. Pasaron 53 pruebas de backend y la compilación de React. Chromium verificó el inicio, el menú, la ruta directa y el flujo de cierre por rol con SQLite en memoria.
