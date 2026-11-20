@@ -27,6 +27,7 @@ test('CONTRATOS: enums de dominio y YAML coinciden', () => {
     const values = [...match[1].matchAll(/'([^']+)'/g)].map(item => item[1]);
     assert.deepEqual(values, doc.components.schemas[name].enum);
     if (name === 'CriticidadEquipo') assert.deepEqual(values, fallas.components.schemas[name].enum);
+    if (name === 'EstadoOrden') assert.deepEqual(values, activos.components.schemas[name].enum);
   }
 });
 test('CONTRATOS: requeridos de auth, equipo y rechazo de campos inesperados', () => {

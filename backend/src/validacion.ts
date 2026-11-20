@@ -4,7 +4,8 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import type { ValidateFunction } from 'ajv';
 import { parseDocument } from 'yaml';
 import type {
-  ConsultaActivos, ConsultaFallas, ConsultaNotificaciones, ConsultaOrdenes, ConsultaRepuestos, ConsultaTecnicos,
+  ConsultaActivos, ConsultaFallas, ConsultaHistorialEquipo, ConsultaNotificaciones,
+  ConsultaOrdenes, ConsultaRepuestos, ConsultaTecnicos,
 } from './dominio.js';
 import { ErrorAPI } from './errores.js';
 
@@ -75,6 +76,10 @@ function validarConsulta<T extends { page: number; size: number }>(
 /** Normaliza solo los enteros HTTP; los demás filtros se validan desde OpenAPI. */
 export function consultaActivos(query: Record<string, unknown>): ConsultaActivos {
   return validarConsulta<ConsultaActivos>('activos', 'ConsultaActivos', query);
+}
+
+export function consultaHistorialEquipo(query: Record<string, unknown>): ConsultaHistorialEquipo {
+  return validarConsulta<ConsultaHistorialEquipo>('activos', 'ConsultaHistorialEquipo', query);
 }
 
 export function consultaFallas(query: Record<string, unknown>): ConsultaFallas {

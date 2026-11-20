@@ -159,6 +159,29 @@ export interface OrdenDetalleRespuesta extends OrdenRespuesta {
   intervencion: IntervencionRespuesta | null;
 }
 
+export type FallaHistorialEquipo = Pick<FallaRespuesta, 'id' | 'descripcion' | 'prioridad' | 'fecha_reporte'>;
+
+export interface OrdenHistorialEquipo extends Pick<OrdenRespuesta, 'id' | 'estado' | 'fecha_limite'> {
+  creada_en: string | null;
+  iniciada_en: string | null;
+  cerrada_en: string | null;
+}
+
+export type IntervencionHistorialEquipo = Omit<IntervencionRespuesta, 'orden_id' | 'autor_id'>;
+
+export interface RegistroHistorialEquipo {
+  actividad_en: string;
+  falla: FallaHistorialEquipo;
+  orden: OrdenHistorialEquipo | null;
+  intervencion: IntervencionHistorialEquipo | null;
+}
+
+export interface ConsultaHistorialEquipo { page: number; size: number }
+export interface HistorialEquipo extends ConsultaHistorialEquipo {
+  items: RegistroHistorialEquipo[];
+  total: number;
+}
+
 interface PaginacionOrdenes { page: number; size: number }
 export interface ConsultaOrdenes extends PaginacionOrdenes { solo_abiertas?: boolean }
 export interface ConsultaTecnicos extends PaginacionOrdenes { q?: string }

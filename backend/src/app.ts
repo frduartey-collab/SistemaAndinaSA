@@ -5,11 +5,12 @@ import { Datos } from './datos.js';
 import { Fallas } from './fallas.js';
 import { OrdenesTrabajo } from './ordenes.js';
 import { InventarioRepuestos } from './repuestos.js';
+import { HistorialEquipos } from './historial-equipos.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
 import { rutValido } from './rut.js';
 import {
-  solicitud, idPositivo, consultaActivos, consultaFallas, consultaNotificaciones,
+  solicitud, idPositivo, consultaActivos, consultaFallas, consultaHistorialEquipo, consultaNotificaciones,
   consultaOrdenes, consultaTecnicos, consultaRepuestos,
 } from './validacion.js';
 import type {
@@ -43,6 +44,7 @@ export async function crearAplicacion(options: Options) {
   const fallas = new Fallas(datos);
   const inventario = new InventarioRepuestos(datos);
   const ordenes = new OrdenesTrabajo(datos, inventario);
+  const historial = new HistorialEquipos(datos);
   const dummy = await hashPassword(randomUUID());
   const app = express();
   app.disable('x-powered-by');
@@ -203,6 +205,13 @@ export async function crearAplicacion(options: Options) {
   app.delete('/activos/:id', autenticado, escribirActivos, (req, res) => {
     datos.eliminar(idPositivo(req.params.id), (res.locals as Context).usuario.id, now());
     res.status(204).end();
+  });
+  app.get('/equipos/:id/historial', autenticado, (req, res) => {
+    const { rol } = (res.locals as Context).usuario;
+    if (rol !== 'TECNICO' && !administrar(rol)) {
+      throw new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene acceso al historial de equipos.');
+    }
+    res.json(historial.consultar(idPositivo(req.params.id), consultaHistorialEquipo(req.query)));
   });
 
   function accesoFallas(_req: Request, res: Response, next: NextFunction): void {

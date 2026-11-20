@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { ActivoRespuesta } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
 import { Dialogo } from './Dialogo'
+import { HistorialMantenimiento } from './HistorialMantenimiento'
 import { etiquetasEstado, mostrarFecha, mostrarHoras } from './activos'
 import { mensajeError } from './api'
 
@@ -19,7 +20,9 @@ type EstadoDetalle =
   | { tipo: 'listo'; equipo: ActivoRespuesta }
 
 export function DetalleEquipo({ id, codigo, alCerrar, alEditar }: PropsDetalle) {
-  const { solicitar } = useAuth()
+  const { estado: sesion, solicitar } = useAuth()
+  const rol = sesion.tipo === 'activa' ? sesion.usuario.rol : null
+  const puedeVerHistorial = rol === 'TECNICO' || rol === 'SUPERVISOR' || rol === 'JEFATURA'
   const [estado, setEstado] = useState<EstadoDetalle>({ tipo: 'cargando' })
   const [reintentos, setReintentos] = useState(0)
 
@@ -45,7 +48,7 @@ export function DetalleEquipo({ id, codigo, alCerrar, alEditar }: PropsDetalle) 
   }
 
   return (
-    <Dialogo titulo={'Equipo ' + codigo} alCerrar={alCerrar}>
+    <Dialogo titulo={'Equipo ' + codigo} amplio={puedeVerHistorial} alCerrar={alCerrar}>
       {estado.tipo === 'cargando' && <p role="status">Cargando datos del equipo…</p>}
       {estado.tipo === 'error' && (
         <>
@@ -71,6 +74,7 @@ export function DetalleEquipo({ id, codigo, alCerrar, alEditar }: PropsDetalle) 
               <button className="boton boton-primario" type="button" onClick={() => alEditar(estado.equipo)}><Icono nombre="editar" />Editar equipo</button>
             )}
           </div>
+          {puedeVerHistorial && <HistorialMantenimiento equipoId={id} />}
         </>
       )}
     </Dialogo>

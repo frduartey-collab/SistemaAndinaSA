@@ -22,6 +22,7 @@ export type OpcionesApi = RequestInit & { formato?: 'foto' }
 
 export async function llamarApi<T>(
   ruta: "/auth/login" | "/auth/register" | "/auth/me" | "/auth/logout" | "/activos" | `/activos?${string}` | `/activos/${number}` | "/fallas" | `/fallas?${string}`
+    | `/equipos/${number}/historial?${string}`
     | `/fallas/${number}` | `/fallas/${number}/fotos/${number}` | "/notificaciones" | `/notificaciones?${string}` | `/notificaciones/${number}/leida`
     | "/ordenes" | `/ordenes?${string}` | `/ordenes/${number}` | `/ordenes/${number}/estado` | `/ordenes/${number}/cierre` | `/ordenes/tecnicos?${string}`
     | "/repuestos" | `/repuestos?${string}` | `/repuestos/${number}` | `/repuestos/${number}/movimientos`,

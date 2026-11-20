@@ -342,6 +342,21 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 .datos-detalle { margin-block: 1rem; }
 .datos-detalle dt { color: var(--suave); font-size: 0.85rem; font-weight: 650; }
 .datos-detalle dd { margin: 0; overflow-wrap: anywhere; }
+.historial-equipo { margin-top: 1.35rem; padding-top: 1rem; border-top: 1px solid var(--borde); }
+.historial-equipo h3 { margin: 0 0 0.5rem; }
+.historial-registros { display: grid; gap: 0.75rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.historial-registro {
+  padding: 0.85rem;
+  border: 1px solid var(--borde);
+  border-inline-start: 3px solid var(--acento);
+  border-radius: 0.55rem;
+  overflow-wrap: anywhere;
+}
+.historial-registro h4, .historial-evento h5 { margin: 0; font-size: 1rem; }
+.historial-registro > .ayuda { margin-top: 0.25rem; }
+.historial-evento { margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--borde); }
+.historial-datos { margin-block: 0.65rem 0; }
+.historial-paginacion.paginacion { padding-inline: 0; }
 
 @media (max-width: 62rem) {
   .filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }

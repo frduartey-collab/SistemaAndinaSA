@@ -116,3 +116,11 @@ Pasaron 61 pruebas de backend y validaron 23 operaciones OpenAPI. La compilació
 El reporte permite adjuntar hasta tres imágenes JPEG, PNG o WebP de 5 MiB cada una. La API valida tipo, firma y tamaño. SQLite guarda la falla, las fotografías y los avisos en la misma transacción. El autor, Supervisor y Jefatura pueden consultar la fotografía dentro del alcance de acceso de Fallas.
 
 Supervisor y Jefatura disponen de Avisos para consultar las fallas nuevas, marcar avisos como leídos por cuenta y abrir el reporte. Chromium comprobó el adjunto y su visualización, la conservación del formulario ante un fallo de red, la llegada del aviso y la persistencia de la lectura.
+
+## Historial de mantenimiento por equipo
+
+La ficha de un equipo vigente muestra el historial en solo lectura a Técnico, Supervisor y Jefatura. GET /equipos/{id}/historial devuelve las fallas por página con su orden, su intervención y los repuestos consumidos cuando existen. El orden corresponde a la última actividad registrada y el identificador de falla resuelve los empates.
+
+El historial recupera las fechas de creación, inicio y cierre desde auditoría. Las fechas ausentes quedan sin registro y una orden histórica cerrada sigue visible aunque no tenga intervención. El consumo conserva los códigos y nombres guardados al cerrar. Los permisos de Fallas, sus fotos y las operaciones de Órdenes siguen aplicándose en sus módulos.
+
+Pasaron 68 pruebas de backend, la validación de 28 operaciones OpenAPI y la compilación del frontend. Chromium comprobó la consulta en móvil, el reintento tras un fallo de red, la ficha sin historial y el acceso diferenciado de Técnico, Supervisor y Trabajador.

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Manufacturas Andina - Gestión de activos
-  version: 0.2.0
+  version: 0.3.0
   description: RF-02 / HU-02. SUPERVISOR y JEFATURA crean/editan/dan de baja; TECNICO y TRABAJADOR
     solo consultan; BODEGA sin acceso. Código inmutable, único incluso tras baja. No implementa
     transiciones de estado de HU-04/HU-05.
@@ -200,6 +200,30 @@ paths:
         "401": *a1
         "403": *a2
         "404": *a4
+  /equipos/{id}/historial:
+    get:
+      operationId: consultarHistorialEquipo
+      summary: Consultar la trazabilidad de un equipo vigente
+      description: |
+        Disponible para Técnico, Supervisor y Jefatura. Devuelve un registro por
+        falla con su orden e intervención, si existen. Ordena por actividad
+        más reciente y, en empate, por identificador de falla descendente.
+        Los eventos de orden sin fecha registrada en auditoría se devuelven
+        con fecha nula.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/IdHistorial" } }
+        - { name: page, in: query, schema: { $ref: "#/components/schemas/PaginaHistorial" } }
+        - { name: size, in: query, schema: { $ref: "#/components/schemas/TamanoHistorial" } }
+      responses:
+        "200":
+          description: Página de actividades registradas para el equipo.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HistorialEquipo" }
+        "400": *a3
+        "401": *a1
+        "403": *a2
+        "404": *a4
 components:
   securitySchemes:
     bearerAuth:
@@ -207,6 +231,90 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    IdHistorial: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    PaginaHistorial: { type: integer, minimum: 1, maximum: 9007199254740991, default: 1 }
+    TamanoHistorial: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    FechaActividad: { type: string, format: date-time }
+    FechaEventoOrden:
+      type: [string, "null"]
+      format: date-time
+    ConsultaHistorialEquipo:
+      type: object
+      additionalProperties: false
+      required: [page, size]
+      properties:
+        page: { $ref: "#/components/schemas/PaginaHistorial" }
+        size: { $ref: "#/components/schemas/TamanoHistorial" }
+    HistorialEquipo:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/RegistroHistorialEquipo" } }
+        total: { type: integer, minimum: 0 }
+        page: { $ref: "#/components/schemas/PaginaHistorial" }
+        size: { $ref: "#/components/schemas/TamanoHistorial" }
+    RegistroHistorialEquipo:
+      type: object
+      additionalProperties: false
+      required: [actividad_en, falla, orden, intervencion]
+      properties:
+        actividad_en: { $ref: "#/components/schemas/FechaActividad" }
+        falla: { $ref: "#/components/schemas/FallaHistorialEquipo" }
+        orden:
+          oneOf:
+            - { $ref: "#/components/schemas/OrdenHistorialEquipo" }
+            - { type: "null" }
+        intervencion:
+          oneOf:
+            - { $ref: "#/components/schemas/IntervencionHistorialEquipo" }
+            - { type: "null" }
+    FallaHistorialEquipo:
+      type: object
+      additionalProperties: false
+      required: [id, descripcion, prioridad, fecha_reporte]
+      properties:
+        id: { $ref: "#/components/schemas/IdHistorial" }
+        descripcion: { type: string, minLength: 1, maxLength: 2000 }
+        prioridad: { $ref: "#/components/schemas/CriticidadEquipo" }
+        fecha_reporte: { $ref: "#/components/schemas/FechaActividad" }
+    EstadoOrden:
+      type: string
+      enum: [PENDIENTE, EN_PROGRESO, CERRADA]
+    OrdenHistorialEquipo:
+      type: object
+      additionalProperties: false
+      required: [id, estado, fecha_limite, creada_en, iniciada_en, cerrada_en]
+      properties:
+        id: { $ref: "#/components/schemas/IdHistorial" }
+        estado: { $ref: "#/components/schemas/EstadoOrden" }
+        fecha_limite: { type: string, format: date }
+        creada_en: { $ref: "#/components/schemas/FechaEventoOrden" }
+        iniciada_en: { $ref: "#/components/schemas/FechaEventoOrden" }
+        cerrada_en: { $ref: "#/components/schemas/FechaEventoOrden" }
+    IntervencionHistorialEquipo:
+      type: object
+      additionalProperties: false
+      required: [diagnostico, solucion, duracion_minutos, registrada_en, repuestos_usados, repuestos_consumidos]
+      properties:
+        diagnostico: { type: string, minLength: 1, maxLength: 2000 }
+        solucion: { type: string, minLength: 1, maxLength: 2000 }
+        duracion_minutos: { $ref: "#/components/schemas/IdHistorial" }
+        registrada_en: { $ref: "#/components/schemas/FechaActividad" }
+        repuestos_usados: { type: [string, "null"], maxLength: 2000 }
+        repuestos_consumidos:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/RepuestoConsumidoRespuesta" }
+    RepuestoConsumidoRespuesta:
+      type: object
+      additionalProperties: false
+      required: [repuesto_id, codigo, nombre, cantidad]
+      properties:
+        repuesto_id: { $ref: "#/components/schemas/IdHistorial" }
+        codigo: { type: string, minLength: 1, maxLength: 60 }
+        nombre: { type: string, minLength: 1, maxLength: 150 }
+        cantidad: { $ref: "#/components/schemas/IdHistorial" }
     CriticidadEquipo:
       type: string
       enum:
