@@ -124,3 +124,13 @@ La ficha de un equipo vigente muestra el historial en solo lectura a Técnico, S
 El historial recupera las fechas de creación, inicio y cierre desde auditoría. Las fechas ausentes quedan sin registro y una orden histórica cerrada sigue visible aunque no tenga intervención. El consumo conserva los códigos y nombres guardados al cerrar. Los permisos de Fallas, sus fotos y las operaciones de Órdenes siguen aplicándose en sus módulos.
 
 Pasaron 68 pruebas de backend, la validación de 28 operaciones OpenAPI y la compilación del frontend. Chromium comprobó la consulta en móvil, el reintento tras un fallo de red, la ficha sin historial y el acceso diferenciado de Técnico, Supervisor y Trabajador.
+
+## Operación SaaS y sedes
+
+La migración asigna los datos existentes al cliente inicial Manufacturas Andina S.A., plan Empresa. Los registros operativos incluyen tenant_id y los permisos se derivan de la sesión validada. El registro público abre una organización Particular independiente con su cuenta Jefatura. Supervisor y Jefatura pueden crear cuentas dentro de su organización. El RUT sigue siendo el identificador de inicio de sesión.
+
+Particular admite hasta 50 equipos vigentes. El cálculo y el alta ocurren en una misma transacción. La baja de un equipo libera cupo. POST /activos y POST /equipos aplican los mismos permisos, cupos y validaciones. Códigos de equipos y repuestos quedan reservados dentro de cada organización.
+
+El plan Empresa permite consultar y gestionar sedes propias. Supervisor y Jefatura pueden crear, editar, eliminar sedes sin equipos asignados y asignar o quitar la sede desde el formulario del equipo. El operador de la instalación puede habilitar Empresa para un cliente activo con `npm run tenant:empresa -- <id>`. El plan se comprueba en el servidor en cada solicitud autenticada.
+
+Pasaron 73 pruebas de backend, 34 operaciones OpenAPI y la compilación del frontend. Chromium verificó el aviso del equipo 51 y la creación y asignación de una sede. El ensayo de migración sobre una copia de la base local conservó los registros de las 12 tablas verificadas.

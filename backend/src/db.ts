@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hashPassword, rutValido } from './seguridad.js';
 import type { Rol } from './dominio.js';
+import { prepararTenants } from './tenants.js';
 
 export function rutaDatos(): string {
   return resolve(process.env.DB_PATH ?? fileURLToPath(new URL('../data/app.db', import.meta.url)));
@@ -15,6 +16,7 @@ export function abrirConexion(path = rutaDatos()): Database.Database {
   if (path !== ':memory:') chmodSync(path, 0o600);
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
+  prepararTenants(db);
   db.exec(`CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY, rut TEXT UNIQUE NOT NULL, nombre TEXT NOT NULL,
     password_hash TEXT NOT NULL,

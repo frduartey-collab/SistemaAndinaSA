@@ -20,21 +20,22 @@ type FilaConsumo = RepuestoConsumidoRespuesta & { orden_id: number };
 
 const SELECCION_HISTORIAL = `
   WITH fallas_equipo AS (
-    SELECT id, descripcion, prioridad, fecha_reporte FROM fallas WHERE equipo_id = ?
+    SELECT id, tenant_id, descripcion, prioridad, fecha_reporte
+    FROM fallas WHERE tenant_id = ? AND equipo_id = ?
   ),
   eventos_orden AS (
-    SELECT o.id AS orden_id,
+    SELECT o.id AS orden_id, o.tenant_id,
            MIN(CASE WHEN a.accion = 'ORDEN_CREADA' THEN a.fecha END) AS creada_en,
            MIN(CASE WHEN a.accion = 'ORDEN_ESTADO_EN_PROGRESO' THEN a.fecha END) AS iniciada_en,
            MAX(CASE WHEN a.accion IN ('ORDEN_ESTADO_CERRADA', 'ORDEN_CERRADA_CON_INTERVENCION')
                     THEN a.fecha END) AS cerrada_en,
            MAX(a.fecha) AS ultimo_evento
     FROM fallas_equipo f
-    JOIN ordenes_trabajo o ON o.falla_id = f.id
-    JOIN auditoria a ON a.entidad_id = o.id
+    JOIN ordenes_trabajo o ON o.falla_id = f.id AND o.tenant_id = f.tenant_id
+    JOIN auditoria a ON a.entidad_id = o.id AND a.tenant_id = o.tenant_id
       AND a.accion IN ('ORDEN_CREADA', 'ORDEN_ESTADO_EN_PROGRESO',
                        'ORDEN_ESTADO_CERRADA', 'ORDEN_CERRADA_CON_INTERVENCION')
-    GROUP BY o.id
+    GROUP BY o.tenant_id, o.id
   )
   SELECT f.id, f.descripcion, f.prioridad, f.fecha_reporte,
          o.id AS orden_id, o.estado AS estado_orden, o.fecha_limite,
@@ -44,9 +45,9 @@ const SELECCION_HISTORIAL = `
          MAX(f.fecha_reporte, COALESCE(e.ultimo_evento, f.fecha_reporte),
              COALESCE(i.registrada_en, f.fecha_reporte)) AS actividad_en
   FROM fallas_equipo f
-  LEFT JOIN ordenes_trabajo o ON o.falla_id = f.id
-  LEFT JOIN eventos_orden e ON e.orden_id = o.id
-  LEFT JOIN intervenciones i ON i.orden_id = o.id
+  LEFT JOIN ordenes_trabajo o ON o.falla_id = f.id AND o.tenant_id = f.tenant_id
+  LEFT JOIN eventos_orden e ON e.orden_id = o.id AND e.tenant_id = o.tenant_id
+  LEFT JOIN intervenciones i ON i.orden_id = o.id AND i.tenant_id = o.tenant_id
   ORDER BY actividad_en DESC, f.id DESC
   LIMIT ? OFFSET ?
 `;
@@ -63,12 +64,12 @@ export class HistorialEquipos {
     const offset = (consulta.page - 1) * consulta.size;
     return this.datos.db.transaction(() => {
       this.datos.obtener(equipoId);
-      const { total } = this.datos.db.prepare<[number], { total: number }>(
-        'SELECT count(*) AS total FROM fallas WHERE equipo_id = ?',
-      ).get(equipoId)!;
-      const filas = this.datos.db.prepare<[number, number, number], FilaHistorial>(
+      const { total } = this.datos.db.prepare<[number, number], { total: number }>(
+        'SELECT count(*) AS total FROM fallas WHERE tenant_id = ? AND equipo_id = ?',
+      ).get(this.datos.tenantId, equipoId)!;
+      const filas = this.datos.db.prepare<[number, number, number, number], FilaHistorial>(
         SELECCION_HISTORIAL,
-      ).all(equipoId, consulta.size, offset);
+      ).all(this.datos.tenantId, equipoId, consulta.size, offset);
       const ordenesIntervenidas = filas.flatMap(fila =>
         fila.intervencion_orden_id === null ? [] : [fila.intervencion_orden_id],
       );
@@ -104,8 +105,8 @@ export class HistorialEquipos {
     const filas = this.datos.db.prepare<number[], FilaConsumo>(`
       SELECT orden_id, repuesto_id, codigo, nombre, cantidad
       FROM orden_repuesto
-      WHERE orden_id IN (${parametros}) ORDER BY orden_id, repuesto_id
-    `).all(...ordenes);
+      WHERE tenant_id = ? AND orden_id IN (${parametros}) ORDER BY orden_id, repuesto_id
+    `).all(this.datos.tenantId, ...ordenes);
     for (const { orden_id, ...consumo } of filas) {
       const registrados = consumos.get(orden_id);
       if (registrados) registrados.push(consumo);

@@ -1,8 +1,9 @@
 import { Icono } from './Icono'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import type { ActivoActualizarSolicitud, ActivoCrearSolicitud, ActivoRespuesta, CriticidadEquipo } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
 import { Dialogo } from './Dialogo'
+import { SelectorSede } from './SelectorSede'
 import { criticidades, etiquetasEstado } from './activos'
 import { ErrorApi, mensajeError } from './api'
 
@@ -14,6 +15,7 @@ type Campos = {
   ubicacion: string
   criticidad: CriticidadEquipo | ''
   horas: string
+  sede: string
 }
 
 export type BorradorEquipo = {
@@ -32,8 +34,8 @@ type PropsFormulario = {
 }
 
 export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGuardar }: PropsFormulario) {
-  const { solicitar, puedeEscribir } = useAuth()
-  const [campos, setCampos] = useState<Campos>(() => borrador?.campos ?? ({
+  const { solicitar, puedeEscribir, plan } = useAuth()
+  const [campos, setCampos] = useState<Campos>(() => ({
     codigo: equipo?.codigo ?? '',
     nombre: equipo?.nombre ?? '',
     marca: equipo?.marca ?? '',
@@ -41,10 +43,14 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
     ubicacion: equipo?.ubicacion ?? '',
     criticidad: equipo?.criticidad ?? '',
     horas: String(equipo?.uso_acumulado_horas ?? 0),
+    sede: equipo?.sede_id ? String(equipo.sede_id) : '',
+    ...borrador?.campos,
   }))
   const [errores, setErrores] = useState<Errores>({})
   const [error, setError] = useState('')
+  const [cupoAlcanzado, setCupoAlcanzado] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const enCurso = useRef(false)
 
   function cambiar<K extends keyof Campos>(campo: K, valor: Campos[K]) {
     const siguientes = { ...campos, [campo]: valor }
@@ -56,7 +62,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
 
   async function guardar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
-    if (guardando || !puedeEscribir) return
+    if (enCurso.current || !puedeEscribir) return
     const formulario = evento.currentTarget
     const { criticidad } = campos
     const codigo = campos.codigo.trim().toUpperCase()
@@ -65,6 +71,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
     const marca = campos.marca.trim() || null
     const modelo = campos.modelo.trim() || null
     const horas = Number(campos.horas)
+    const sedeId = plan === 'EMPRESA' && campos.sede ? Number(campos.sede) : null
     const encontrados: Errores = {}
 
     if (!equipo && !/^EQ-[0-9]{4}$/.test(codigo)) encontrados.codigo = 'Usa EQ- seguido de cuatro números, por ejemplo, EQ-0042.'
@@ -77,6 +84,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
 
     setErrores(encontrados)
     setError('')
+    setCupoAlcanzado(false)
     const primerError = Object.keys(encontrados)[0]
     if (primerError || !criticidad) {
       const campo = formulario.elements.namedItem(primerError)
@@ -84,6 +92,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
       return
     }
 
+    enCurso.current = true
     setGuardando(true)
     let mensaje = ''
     try {
@@ -95,6 +104,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
         if (marca !== (equipo.marca?.trim() || null)) cambios.marca = marca
         if (modelo !== (equipo.modelo?.trim() || null)) cambios.modelo = modelo
         if (horas !== equipo.uso_acumulado_horas) cambios.uso_acumulado_horas = horas
+        if (plan === 'EMPRESA' && sedeId !== (equipo.sede_id ?? null)) cambios.sede_id = sedeId
 
         if (Object.keys(cambios).length > 0) {
           await solicitar<ActivoRespuesta>(`/activos/${equipo.id}`, {
@@ -109,12 +119,15 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
         const datos: ActivoCrearSolicitud = {
           codigo: codigo as ActivoCrearSolicitud['codigo'],
           nombre, marca, modelo, ubicacion, criticidad,
+          ...(sedeId !== null ? { sede_id: sedeId } : {}),
         }
         const creado = await solicitar<ActivoRespuesta>('/activos', { method: 'POST', body: JSON.stringify(datos) })
         mensaje = 'Equipo ' + creado.codigo + ' creado.'
       }
     } catch (fallo) {
-      if (fallo instanceof ErrorApi && fallo.codigo === 'CODIGO_DUPLICADO') {
+      if (fallo instanceof ErrorApi && fallo.estado === 403 && fallo.codigo === 'CUPO_EQUIPOS_ALCANZADO') {
+        setCupoAlcanzado(true)
+      } else if (fallo instanceof ErrorApi && fallo.codigo === 'CODIGO_DUPLICADO') {
         setErrores({ codigo: 'Este código ya está reservado, incluso si el equipo fue dado de baja.' })
       } else if (fallo instanceof ErrorApi && fallo.codigo === 'CODIGO_FORMATO_INVALIDO') {
         setErrores({ codigo: fallo.message })
@@ -122,6 +135,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
         setError(mensajeError(fallo, 'No se pudo guardar el equipo. Tus datos siguen en el formulario.'))
       }
     } finally {
+      enCurso.current = false
       setGuardando(false)
     }
     if (mensaje) alGuardar(mensaje)
@@ -141,6 +155,11 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
   return (
     <Dialogo titulo={equipo ? 'Editar equipo' : 'Nuevo equipo'} amplio ocupado={guardando} alCerrar={alCerrar}>
       <form noValidate onSubmit={guardar} aria-busy={guardando}>
+        {cupoAlcanzado && (
+          <p className="aviso aviso-error" role="alert">
+            Has alcanzado el límite de tu plan. Actualiza al Plan Empresa para equipos ilimitados y gestión multi-sede
+          </p>
+        )}
         {error && <p className="aviso aviso-error" role="alert">{error}</p>}
         <fieldset disabled={guardando}>
           <legend className="solo-lectores">Datos del equipo</legend>
@@ -199,6 +218,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
               <label htmlFor="equipo-estado">Estado</label>
               <input id="equipo-estado" readOnly value={etiquetasEstado[equipo?.estado ?? 'OPERATIVO']} />
             </div>
+            {plan === 'EMPRESA' && <SelectorSede valor={campos.sede} alCambiar={(valor) => cambiar('sede', valor)} />}
           </div>
         </fieldset>
         <div className="dialogo-acciones">

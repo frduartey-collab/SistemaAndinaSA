@@ -1,3 +1,15 @@
+export type PlanTenant = 'PARTICULAR' | 'EMPRESA';
+export type EstadoTenant = 'ACTIVO' | 'INACTIVO';
+export interface Tenant {
+  id: number;
+  nombre_empresa: string;
+  plan: PlanTenant;
+  fecha_suscripcion: string;
+  estado: EstadoTenant;
+}
+export interface SedeSolicitud { nombre: string; direccion: string }
+export interface SedeRespuesta extends SedeSolicitud { id: number }
+
 export type Rol = 'TECNICO' | 'SUPERVISOR' | 'TRABAJADOR' | 'BODEGA' | 'JEFATURA';
 
 declare const codigoEquipo: unique symbol;
@@ -9,8 +21,16 @@ export type CriticidadEquipo = 'ALTA' | 'MEDIA' | 'BAJA';
 export type EstadoEquipo = 'OPERATIVO' | 'EN_FALLA' | 'EN_MANTENCIÓN' | 'FUERA_DE_SERVICIO';
 
 export interface LoginSolicitud { rut: string; password: string }
-export interface UsuarioSesion { id: number; rut: string; nombre: string; rol: Rol; activo: boolean }
-export interface RegistroSolicitud extends LoginSolicitud { nombre: string; rol: Rol }
+export interface UsuarioSesion {
+  id: number;
+  rut: string;
+  nombre: string;
+  rol: Rol;
+  activo: boolean;
+  tenant_id: number;
+  plan: PlanTenant;
+}
+export interface RegistroSolicitud extends LoginSolicitud { nombre: string; rol: Rol; nombre_empresa?: string }
 export interface LoginRespuesta { token: string; usuario: UsuarioSesion; expiraEn: number }
 export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_INACTIVO'
   | 'DEMASIADOS_INTENTOS' | 'DATOS_INVALIDOS' | 'NO_AUTORIZADO' | 'SIN_PERMISO'
@@ -18,7 +38,9 @@ export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_I
   | 'FALLA_NO_ENCONTRADA' | 'ORDEN_DUPLICADA' | 'TECNICO_NO_DISPONIBLE'
   | 'ORDEN_NO_ENCONTRADA' | 'TRANSICION_ORDEN_INVALIDA' | 'ORDEN_YA_CERRADA'
   | 'REPUESTO_NO_ENCONTRADO' | 'REPUESTO_CON_STOCK' | 'STOCK_INSUFICIENTE'
-  | 'FOTO_NO_ENCONTRADA' | 'NOTIFICACION_NO_ENCONTRADA';
+  | 'FOTO_NO_ENCONTRADA' | 'NOTIFICACION_NO_ENCONTRADA'
+  | 'CUPO_EQUIPOS_ALCANZADO' | 'PLAN_EMPRESA_REQUERIDO'
+  | 'SEDE_NO_ENCONTRADA' | 'SEDE_DUPLICADA' | 'SEDE_EN_USO';
 export interface ErrorRespuesta { codigo: CodigoError; mensaje: string }
 
 export interface ActivoCrearSolicitud {
@@ -28,6 +50,7 @@ export interface ActivoCrearSolicitud {
   modelo?: string | null;
   ubicacion: string;
   criticidad: CriticidadEquipo;
+  sede_id?: number | null;
 }
 export interface ActivoActualizarSolicitud {
   nombre?: string;
@@ -36,6 +59,7 @@ export interface ActivoActualizarSolicitud {
   ubicacion?: string;
   criticidad?: CriticidadEquipo;
   uso_acumulado_horas?: number;
+  sede_id?: number | null;
   /** Compatibilidad de entrada: cualquier valor recibido se ignora. */
   codigo?: unknown;
 }
@@ -51,6 +75,7 @@ export interface ActivoRespuesta {
   uso_acumulado_horas: number;
   fecha_alta: string;
   deleted_at: string | null;
+  sede_id?: number;
 }
 export interface ConsultaActivos {
   q?: string;

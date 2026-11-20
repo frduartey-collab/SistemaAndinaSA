@@ -101,11 +101,11 @@ paths:
       operationId: registrarUsuario
       summary: Crear una cuenta con RUT
       description: |
-        El registro público permite TECNICO y TRABAJADOR. Para crear BODEGA se
-        requiere sesión SUPERVISOR o JEFATURA. Solo JEFATURA puede crear
-        SUPERVISOR o JEFATURA. Las cuentas se crean activas. Diez solicitudes
-        de registro cada diez minutos por origen. El RUT se registra sin ceros
-        al comienzo.
+        El registro público crea un cliente Particular aislado y su primera
+        cuenta JEFATURA. Requiere nombre_empresa. Un Supervisor o Jefatura
+        autenticado crea cuentas dentro de su cliente. Solo Jefatura puede crear
+        Supervisor o Jefatura. La entrada nunca permite indicar un tenant_id ni plan.
+        Se admiten diez solicitudes por origen cada diez minutos.
       security:
         - {}
         - bearerAuth: []
@@ -258,6 +258,15 @@ components:
           description: Entre 8 caracteres y 72 bytes UTF-8.
         rol:
           $ref: "#/components/schemas/Rol"
+        nombre_empresa:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: '\S'
+          description: Obligatorio en alta pública y excluido del alta autenticada.
+    PlanTenant:
+      type: string
+      enum: [PARTICULAR, EMPRESA]
     UsuarioSesion:
       type: object
       additionalProperties: false
@@ -267,6 +276,8 @@ components:
         - nombre
         - rol
         - activo
+        - tenant_id
+        - plan
       properties:
         id:
           type: integer
@@ -280,12 +291,19 @@ components:
           $ref: "#/components/schemas/Rol"
         activo:
           type: boolean
+        tenant_id:
+          type: integer
+          minimum: 1
+        plan:
+          $ref: "#/components/schemas/PlanTenant"
       examples:
         - id: 1
           rut: 12345678-5
           nombre: Ana Pérez
           rol: TECNICO
           activo: true
+          tenant_id: 1
+          plan: EMPRESA
     LoginRespuesta:
       type: object
       additionalProperties: false

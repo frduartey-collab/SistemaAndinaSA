@@ -277,8 +277,14 @@ test('Los cierres históricos conservan sus datos previos sin crear consumos nue
   let id;
   let idConIntervencion;
   const f = await fixture(t, (datos, personas, equipo) => {
-    const fallas = new Fallas(datos);
-    const falla = fallas.crear({ equipo_id: equipo.id, descripcion: 'Falla histórica.' }, personas.tecnico.id, AHORA);
+    new Fallas(datos);
+    const insertarFalla = datos.db.prepare(`
+      INSERT INTO fallas (equipo_id, usuario_id, descripcion, prioridad, fecha_reporte)
+      VALUES (?, ?, ?, 'ALTA', ?)
+    `);
+    const fallaLegada = texto => Number(insertarFalla
+      .run(equipo.id, personas.tecnico.id, texto, new Date(AHORA).toISOString()).lastInsertRowid);
+    const falla = fallaLegada('Falla histórica.');
     datos.db.exec(`
       CREATE TABLE ordenes_trabajo (
         id INTEGER PRIMARY KEY,
@@ -302,9 +308,9 @@ test('Los cierres históricos conservan sus datos previos sin crear consumos nue
       INSERT INTO ordenes_trabajo (falla_id, tecnico_id, fecha_limite, estado)
       VALUES (?, ?, '2026-11-20', 'CERRADA')
     `);
-    id = Number(insertarOrden.run(falla.id, personas.tecnico.id).lastInsertRowid);
-    const otraFalla = fallas.crear({ equipo_id: equipo.id, descripcion: 'Falla con intervención.' }, personas.tecnico.id, AHORA);
-    idConIntervencion = Number(insertarOrden.run(otraFalla.id, personas.tecnico.id).lastInsertRowid);
+    id = Number(insertarOrden.run(falla, personas.tecnico.id).lastInsertRowid);
+    const otraFalla = fallaLegada('Falla con intervención.');
+    idConIntervencion = Number(insertarOrden.run(otraFalla, personas.tecnico.id).lastInsertRowid);
     datos.db.prepare(`
       INSERT INTO intervenciones (orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, registrada_en)
       VALUES (?, ?, ?, ?, ?, ?, ?)

@@ -7,6 +7,7 @@ import { useAuth } from './AuthContext'
 import { AvisosFallas } from './AvisosFallas'
 import { CatalogoEquipos } from './CatalogoEquipos'
 import { DetalleFalla } from './DetalleFalla'
+import { GestionSedes } from './GestionSedes'
 import { InicioTrabajador } from './InicioTrabajador'
 import { InventarioBodega } from './InventarioBodega'
 import { LandingPlanes } from './LandingPlanes'
@@ -23,7 +24,7 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
   puedeVerOrdenes: boolean
   puedeVerInventario: boolean
 }) {
-  const { estado, puedeLeer, puedeEscribir, cerrarSesion } = useAuth()
+  const { estado, plan, puedeLeer, puedeEscribir, cerrarSesion } = useAuth()
   const [saliendo, setSaliendo] = useState(false)
   const [error, setError] = useState('')
 
@@ -50,7 +51,7 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
       <header className="cabecera">
         <div className="cabecera-interior">
           <MarcaSigem />
-          {(puedeLeer || puedeVerInventario) && (
+          {(puedeLeer || puedeVerInventario || plan === 'EMPRESA') && (
             <nav className="navegacion-sigem" aria-label="Secciones de SIGEM">
               {estado.usuario.rol === 'TRABAJADOR' && (
                 <NavLink className="enlace-nav" to="/inicio" end><span className="icono-nav"><Icono nombre="inicio" /></span>Inicio</NavLink>
@@ -66,6 +67,9 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
               )}
               {puedeVerInventario && (
                 <NavLink className="enlace-nav" to="/inventario"><span className="icono-nav"><Icono nombre="inventario" /></span>Inventario</NavLink>
+              )}
+              {plan === 'EMPRESA' && (
+                <NavLink className="enlace-nav" to="/sedes"><span className="icono-nav"><Icono nombre="sede" /></span>Sedes y Sucursales</NavLink>
               )}
               {puedeEscribir && (
                 <NavLink className="enlace-nav" to="/avisos"><span className="icono-nav"><Icono nombre="aviso" /></span>Avisos</NavLink>
@@ -96,7 +100,7 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
 }
 
 function Sistema() {
-  const { estado, puedeLeer, puedeEscribir, reintentar } = useAuth()
+  const { estado, plan, puedeLeer, puedeEscribir, reintentar } = useAuth()
   const [borrador, setBorrador] = useState<{ usuarioId: number; datos: BorradorEquipo } | null>(null)
 
   if (estado.tipo === 'comprobando') {
@@ -125,7 +129,8 @@ function Sistema() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/registro" element={<Registro />} />
+      <Route path="/registro" element={estado.tipo === 'activa' && !puedeEscribir
+        ? <Navigate to="/inicio" replace /> : <Registro />} />
       <Route element={<LayoutProtegido alSalir={() => setBorrador(null)} puedeVerOrdenes={puedeVerOrdenes}
         puedeVerInventario={puedeVerInventario} />}>
         <Route path="/inicio" element={rol === 'TRABAJADOR'
@@ -156,6 +161,12 @@ function Sistema() {
           <section className="panel estado-pagina">
             <h1>Acceso restringido</h1>
             <p>Inventario está disponible para Bodega y Jefatura.</p>
+          </section>
+        )} />
+        <Route path="/sedes" element={plan === 'EMPRESA' ? <GestionSedes key={usuarioId} /> : (
+          <section className="panel estado-pagina">
+            <h1>Acceso restringido</h1>
+            <p>Sedes y Sucursales está disponible para el Plan Empresa.</p>
           </section>
         )} />
         <Route

@@ -1,6 +1,6 @@
 import { Icono } from './Icono'
 import { MarcaSigem } from './MarcaSigem'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import type { RegistroSolicitud, Rol, UsuarioSesion } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
@@ -8,12 +8,12 @@ import { etiquetasRol } from './activos'
 import { ErrorApi, llamarApi, mensajeError } from './api'
 import { normalizarRut, rutValido } from './rut'
 
-const ROLES_PUBLICOS = ['TECNICO', 'TRABAJADOR'] as const
+const ROLES_BASE = ['TECNICO', 'TRABAJADOR'] as const
 
 function rolesDisponibles(rol?: Rol): readonly Rol[] {
-  if (rol === 'JEFATURA') return [...ROLES_PUBLICOS, 'BODEGA', 'SUPERVISOR', 'JEFATURA']
-  if (rol === 'SUPERVISOR') return [...ROLES_PUBLICOS, 'BODEGA']
-  return ROLES_PUBLICOS
+  if (rol === 'JEFATURA') return [...ROLES_BASE, 'BODEGA', 'SUPERVISOR', 'JEFATURA']
+  if (rol === 'SUPERVISOR') return [...ROLES_BASE, 'BODEGA']
+  return []
 }
 
 export function Registro() {
@@ -23,16 +23,18 @@ export function Registro() {
   const roles = rolesDisponibles(sesionActiva ? estado.usuario.rol : undefined)
   const [rut, setRut] = useState('')
   const [nombre, setNombre] = useState('')
+  const [nombreEmpresa, setNombreEmpresa] = useState('')
   const [password, setPassword] = useState('')
   const [rol, setRol] = useState<Rol | ''>('')
   const [visible, setVisible] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
+  const enCurso = useRef(false)
 
   async function registrar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
-    if (enviando) return
+    if (enCurso.current) return
     setExito('')
 
     const rutNormalizado = normalizarRut(rut)
@@ -48,18 +50,29 @@ export function Registro() {
       setError('Ingresa el nombre de la persona.')
       return
     }
+    if (!sesionActiva && !nombreEmpresa.trim()) {
+      setError('Ingresa el nombre de la empresa.')
+      return
+    }
     if (Array.from(password).length < 8 || new TextEncoder().encode(password).length > 72) {
       setError('La contraseña debe tener al menos 8 caracteres y como máximo 72 bytes.')
       return
     }
-    if (!rol || !roles.includes(rol)) {
+    if (sesionActiva && (!rol || !roles.includes(rol))) {
       setError('Selecciona un rol disponible.')
       return
     }
 
-    const datos: RegistroSolicitud = { rut: rutNormalizado, nombre: nombre.trim(), password, rol }
+    const datos: RegistroSolicitud = {
+      rut: rutNormalizado,
+      nombre: nombre.trim(),
+      password,
+      rol: sesionActiva && rol ? rol : 'JEFATURA',
+      ...(!sesionActiva ? { nombre_empresa: nombreEmpresa.trim() } : {}),
+    }
     const opciones = { method: 'POST', body: JSON.stringify(datos) }
     setError('')
+    enCurso.current = true
     setEnviando(true)
 
     try {
@@ -84,6 +97,7 @@ export function Registro() {
         setError(mensajeError(fallo, 'No se pudo crear la cuenta. Tus datos siguen en el formulario.'))
       }
     } finally {
+      enCurso.current = false
       setEnviando(false)
     }
   }
@@ -96,6 +110,7 @@ export function Registro() {
       </div>
       <section className="panel-login" aria-labelledby="titulo-registro">
         <h1 id="titulo-registro">Crear cuenta</h1>
+        {!sesionActiva && <p className="ayuda registro-plan">Tu primera cuenta tendrá rol Jefatura en el Plan Particular.</p>}
         {error && <p className="aviso aviso-error" role="alert">{error}</p>}
         {exito && <p className="aviso aviso-exito" role="status">{exito}</p>}
         <form className="formulario-login" noValidate aria-busy={enviando} onSubmit={registrar}>
@@ -111,6 +126,13 @@ export function Registro() {
               <input id="registro-nombre" autoComplete={sesionActiva ? 'off' : 'name'} required
                 maxLength={120} value={nombre} onChange={(evento) => setNombre(evento.target.value)} />
             </div>
+            {!sesionActiva && (
+              <div className="campo">
+                <label htmlFor="registro-empresa">Nombre de la empresa</label>
+                <input id="registro-empresa" autoComplete="organization" required
+                  maxLength={160} value={nombreEmpresa} onChange={(evento) => setNombreEmpresa(evento.target.value)} />
+              </div>
+            )}
             <div className="campo">
               <label htmlFor="registro-password">Contraseña</label>
               <div className="entrada-password">
@@ -125,14 +147,16 @@ export function Registro() {
               </div>
               <p className="ayuda" id="registro-password-ayuda">Usa al menos 8 caracteres.</p>
             </div>
-            <div className="campo">
-              <label htmlFor="registro-rol">Rol</label>
-              <select id="registro-rol" required value={rol}
-                onChange={(evento) => setRol(evento.target.value as Rol | '')}>
-                <option value="">Seleccionar</option>
-                {roles.map((valor) => <option key={valor} value={valor}>{etiquetasRol[valor]}</option>)}
-              </select>
-            </div>
+            {sesionActiva && (
+              <div className="campo">
+                <label htmlFor="registro-rol">Rol</label>
+                <select id="registro-rol" required value={rol}
+                  onChange={(evento) => setRol(evento.target.value as Rol | '')}>
+                  <option value="">Seleccionar</option>
+                  {roles.map((valor) => <option key={valor} value={valor}>{etiquetasRol[valor]}</option>)}
+                </select>
+              </div>
+            )}
           </fieldset>
           <button className="boton boton-primario" type="submit" disabled={enviando}>
             <Icono nombre="cuenta" />

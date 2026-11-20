@@ -1,0 +1,115 @@
+openapi: 3.1.0
+info:
+  title: SIGEM · Sedes
+  version: 1.0.0
+  description: Gestión de sedes del cliente autenticado con plan Empresa.
+security:
+  - bearerAuth: []
+paths:
+  /sedes:
+    get:
+      operationId: listarSedes
+      summary: Listar sedes del cliente Empresa
+      responses:
+        "200":
+          description: Sedes del cliente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SedeRespuesta" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: crearSede
+      summary: Agregar sede (Supervisor o Jefatura)
+      requestBody: &ficha
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SedeSolicitud" }
+      responses:
+        "201": &sede
+          description: Datos de la sede.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SedeRespuesta" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /sedes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/Id" }
+    get:
+      operationId: obtenerSede
+      summary: Consultar una sede del cliente Empresa
+      responses:
+        "200": *sede
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: editarSede
+      summary: Editar una sede (Supervisor o Jefatura)
+      requestBody: *ficha
+      responses:
+        "200": *sede
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: eliminarSede
+      summary: Eliminar una sede sin equipos asignados (Supervisor o Jefatura)
+      responses:
+        "204":
+          description: Sede eliminada.
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: Sesión, plan, permisos o datos inválidos. Una sede ajena devuelve 404.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Id: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    SedeSolicitud:
+      type: object
+      additionalProperties: false
+      required: [nombre, direccion]
+      properties:
+        nombre: &nombre { type: string, minLength: 1, maxLength: 120, pattern: '\S' }
+        direccion: &direccion { type: string, minLength: 1, maxLength: 250, pattern: '\S' }
+    SedeRespuesta:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, direccion]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        nombre: *nombre
+        direccion: *direccion
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          enum: [DATOS_INVALIDOS, NO_AUTORIZADO, SIN_PERMISO, PLAN_EMPRESA_REQUERIDO, SEDE_NO_ENCONTRADA, SEDE_DUPLICADA, SEDE_EN_USO]
+        mensaje: { type: string, minLength: 1 }

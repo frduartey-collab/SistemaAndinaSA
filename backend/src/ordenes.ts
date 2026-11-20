@@ -20,9 +20,9 @@ const SELECCION = `
          a.codigo AS equipo_codigo, a.nombre AS equipo_nombre, f.descripcion,
          f.prioridad, o.fecha_limite, o.estado
   FROM ordenes_trabajo o
-  JOIN fallas f ON f.id = o.falla_id
-  JOIN activos a ON a.id = f.equipo_id
-  JOIN usuarios u ON u.id = o.tecnico_id
+  JOIN fallas f ON f.id = o.falla_id AND f.tenant_id = o.tenant_id
+  JOIN activos a ON a.id = f.equipo_id AND a.tenant_id = f.tenant_id
+  JOIN usuarios u ON u.id = o.tecnico_id AND u.tenant_id = o.tenant_id
 `;
 
 const FORMATO_CHILE = new Intl.DateTimeFormat('sv-SE', {
@@ -107,9 +107,9 @@ export class OrdenesTrabajo {
     }
 
     return this.datos.transaccion(() => {
-      const falla = this.datos.db.prepare<[number], { equipo_id: number }>(
-        "SELECT equipo_id FROM fallas WHERE id = ? AND estado = 'REPORTADA'",
-      ).get(input.falla_id);
+      const falla = this.datos.db.prepare<[number, number], { equipo_id: number }>(
+        "SELECT equipo_id FROM fallas WHERE tenant_id = ? AND id = ? AND estado = 'REPORTADA'",
+      ).get(this.datos.tenantId, input.falla_id);
       if (!falla) throw new ErrorAPI(404, 'FALLA_NO_ENCONTRADA', 'La falla reportada no existe.');
       this.datos.obtener(falla.equipo_id);
 
@@ -118,12 +118,13 @@ export class OrdenesTrabajo {
         throw new ErrorAPI(409, 'TECNICO_NO_DISPONIBLE', 'Selecciona un técnico activo.');
       }
 
-      const existente = this.datos.db.prepare('SELECT id FROM ordenes_trabajo WHERE falla_id = ?').get(input.falla_id);
+      const existente = this.datos.db.prepare('SELECT id FROM ordenes_trabajo WHERE tenant_id = ? AND falla_id = ?')
+        .get(this.datos.tenantId, input.falla_id);
       if (existente) throw new ErrorAPI(409, 'ORDEN_DUPLICADA', 'Esta falla ya tiene una orden de trabajo.');
 
       const insercion = this.datos.db.prepare(`
-        INSERT INTO ordenes_trabajo(falla_id, tecnico_id, fecha_limite) VALUES (?, ?, ?)
-      `).run(input.falla_id, input.tecnico_id, input.fecha_limite);
+        INSERT INTO ordenes_trabajo(tenant_id, falla_id, tecnico_id, fecha_limite) VALUES (?, ?, ?, ?)
+      `).run(this.datos.tenantId, input.falla_id, input.tecnico_id, input.fecha_limite);
       const id = Number(insercion.lastInsertRowid);
       this.datos.auditar(actorId, 'ORDEN_CREADA', id, ahora);
       return this.obtener(id);
@@ -131,9 +132,9 @@ export class OrdenesTrabajo {
   }
 
   listar(consulta: ConsultaOrdenes, tecnicoId?: number): PaginaOrdenes {
-    const condiciones: string[] = [];
-    const parametros = tecnicoId === undefined ? [] : [tecnicoId];
-    if (tecnicoId !== undefined) condiciones.push('o.tecnico_id = ?');
+    const condiciones = ['o.tenant_id = ?'];
+    const parametros = [this.datos.tenantId];
+    if (tecnicoId !== undefined) { condiciones.push('o.tecnico_id = ?'); parametros.push(tecnicoId); }
     if (consulta.solo_abiertas) condiciones.push("o.estado IN ('PENDIENTE', 'EN_PROGRESO')");
     const where = condiciones.length ? ' WHERE ' + condiciones.join(' AND ') : '';
     const offset = (consulta.page - 1) * consulta.size;
@@ -150,15 +151,16 @@ export class OrdenesTrabajo {
 
   listarTecnicos(consulta: ConsultaTecnicos): PaginaTecnicos {
     const busqueda = consulta.q?.trim();
-    const filtro = " WHERE rol = 'TECNICO' AND activo = 1"
+    const filtro = " WHERE tenant_id = ? AND rol = 'TECNICO' AND activo = 1"
       + (busqueda ? ' AND instr(lower(nombre), lower(?)) > 0' : '');
-    const parametros = busqueda ? [busqueda] : [];
+    const parametros: Array<string | number> = [this.datos.tenantId];
+    if (busqueda) parametros.push(busqueda);
     const offset = (consulta.page - 1) * consulta.size;
     return this.datos.db.transaction(() => {
       const items = this.datos.db.prepare<Array<string | number>, TecnicoResumen>(
         'SELECT id, nombre FROM usuarios' + filtro + ' ORDER BY nombre COLLATE NOCASE, id LIMIT ? OFFSET ?',
       ).all(...parametros, consulta.size, offset);
-      const { total } = this.datos.db.prepare<string[], { total: number }>(
+      const { total } = this.datos.db.prepare<Array<string | number>, { total: number }>(
         'SELECT count(*) AS total FROM usuarios' + filtro,
       ).get(...parametros)!;
       return { items, total, page: consulta.page, size: consulta.size };
@@ -173,7 +175,8 @@ export class OrdenesTrabajo {
         throw new ErrorAPI(409, 'TRANSICION_ORDEN_INVALIDA', 'Solo una orden pendiente puede pasar a En progreso.');
       }
 
-      this.datos.db.prepare('UPDATE ordenes_trabajo SET estado = ? WHERE id = ?').run(nuevo, id);
+      this.datos.db.prepare('UPDATE ordenes_trabajo SET estado = ? WHERE tenant_id = ? AND id = ?')
+        .run(nuevo, this.datos.tenantId, id);
       this.datos.auditar(actorId, 'ORDEN_ESTADO_' + nuevo, id, ahora);
       return { ...orden, estado: nuevo };
     });
@@ -221,40 +224,42 @@ export class OrdenesTrabajo {
       };
       this.datos.db.prepare(`
         INSERT INTO intervenciones
-          (orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, registrada_en)
-        VALUES (@orden_id, @autor_id, @diagnostico, @solucion, @duracion_minutos, @repuestos_usados, @registrada_en)
-      `).run(intervencion);
+          (tenant_id, orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, registrada_en)
+        VALUES (@tenant_id, @orden_id, @autor_id, @diagnostico, @solucion, @duracion_minutos, @repuestos_usados, @registrada_en)
+      `).run({ ...intervencion, tenant_id: this.datos.tenantId });
       const guardarConsumo = this.datos.db.prepare(`
-        INSERT INTO orden_repuesto (orden_id, repuesto_id, codigo, nombre, cantidad)
-        VALUES (@orden_id, @repuesto_id, @codigo, @nombre, @cantidad)
+        INSERT INTO orden_repuesto (tenant_id, orden_id, repuesto_id, codigo, nombre, cantidad)
+        VALUES (@tenant_id, @orden_id, @repuesto_id, @codigo, @nombre, @cantidad)
       `);
       const repuestosConsumidos = consumos.map(consumo => {
         const repuesto = this.inventario.consumirEnTransaccion(consumo, id, tecnicoId, ahora);
-        guardarConsumo.run({ orden_id: id, ...repuesto });
+        guardarConsumo.run({ orden_id: id, ...repuesto, tenant_id: this.datos.tenantId });
         return repuesto;
       });
-      this.datos.db.prepare("UPDATE ordenes_trabajo SET estado = 'CERRADA' WHERE id = ?").run(id);
+      this.datos.db.prepare("UPDATE ordenes_trabajo SET estado = 'CERRADA' WHERE tenant_id = ? AND id = ?")
+        .run(this.datos.tenantId, id);
       this.datos.auditar(tecnicoId, 'ORDEN_CERRADA_CON_INTERVENCION', id, ahora);
       return { ...orden, estado: 'CERRADA', intervencion: { ...intervencion, repuestos_consumidos: repuestosConsumidos } };
     });
   }
 
   private obtenerIntervencion(id: number): IntervencionRespuesta | null {
-    const intervencion = this.datos.db.prepare<[number], FilaIntervencion>(`
+    const intervencion = this.datos.db.prepare<[number, number], FilaIntervencion>(`
       SELECT orden_id, autor_id, diagnostico, solucion, duracion_minutos, repuestos_usados, registrada_en
-      FROM intervenciones WHERE orden_id = ?
-    `).get(id);
+      FROM intervenciones WHERE tenant_id = ? AND orden_id = ?
+    `).get(this.datos.tenantId, id);
     if (!intervencion) return null;
-    const repuestos = this.datos.db.prepare<[number], RepuestoConsumidoRespuesta>(`
+    const repuestos = this.datos.db.prepare<[number, number], RepuestoConsumidoRespuesta>(`
       SELECT repuesto_id, codigo, nombre, cantidad
-      FROM orden_repuesto WHERE orden_id = ? ORDER BY repuesto_id
-    `).all(id);
+      FROM orden_repuesto WHERE tenant_id = ? AND orden_id = ? ORDER BY repuesto_id
+    `).all(this.datos.tenantId, id);
     return { ...intervencion, repuestos_consumidos: repuestos };
   }
 
   private obtener(id: number, tecnicoId?: number): OrdenRespuesta {
-    const filtro = tecnicoId === undefined ? ' WHERE o.id = ?' : ' WHERE o.id = ? AND o.tecnico_id = ?';
-    const parametros = tecnicoId === undefined ? [id] : [id, tecnicoId];
+    const filtro = ' WHERE o.tenant_id = ? AND o.id = ?' + (tecnicoId === undefined ? '' : ' AND o.tecnico_id = ?');
+    const parametros = [this.datos.tenantId, id];
+    if (tecnicoId !== undefined) parametros.push(tecnicoId);
     const orden = this.datos.db.prepare<number[], OrdenRespuesta>(SELECCION + filtro).get(...parametros);
     if (!orden) throw new ErrorAPI(404, 'ORDEN_NO_ENCONTRADA', 'No se encontró la orden de trabajo.');
     return orden;

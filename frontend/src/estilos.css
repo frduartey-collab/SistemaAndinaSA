@@ -378,6 +378,7 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 
 
 .enlace-cuenta { margin-top: 1.15rem; font-size: 0.9rem; }
+.registro-plan { margin-bottom: 0.7rem; }
 .enlace-cuenta a { color: var(--acento); font-weight: 650; text-underline-offset: 0.2em; }
 
 .modulo-fallas {
@@ -452,6 +453,10 @@ fieldset > .ayuda { margin-bottom: 0.65rem; }
 .descripcion-falla { margin-top: 0.4rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reportes .paginacion { padding-inline: 0; }
 .acciones-reporte { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.6rem; }
+.fila-sede { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.65rem; }
+.fila-sede h2 { margin: 0; font-size: 1.12rem; }
+.fila-sede p { margin-top: 0.25rem; color: var(--suave); white-space: pre-wrap; overflow-wrap: anywhere; }
+.fila-sede .acciones-reporte { margin-top: 0; }
 .aviso-falla h2 { margin: 0; font-size: 1.08rem; overflow-wrap: anywhere; }
 .detalle-falla { padding: clamp(1rem, 3vw, 1.5rem); }
 .detalle-falla > .ayuda { margin-top: 0.45rem; }

@@ -89,13 +89,16 @@ paths:
     post:
       operationId: crearActivo
       summary: Crear activo (SUPERVISOR o JEFATURA)
-      requestBody:
+      description: |
+        En Particular se permiten hasta 50 equipos vigentes por cliente. Una sede
+        opcional requiere Empresa y debe pertenecer al mismo cliente.
+      requestBody: &cuerpoCrearActivo
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/ActivoCrearSolicitud"
-      responses:
+      responses: &respuestasCrearActivo
         "201":
           description: Activo creado.
           content:
@@ -121,7 +124,16 @@ paths:
                           - DATOS_INVALIDOS
                           - CODIGO_FORMATO_INVALIDO
         "401": *a1
-        "403": *a2
+        "403":
+          description: SIN_PERMISO, PLAN_EMPRESA_REQUERIDO o CUPO_EQUIPOS_ALCANZADO.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+        "404":
+          description: SEDE_NO_ENCONTRADA. La sede no existe en el cliente de la sesión.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
         "409":
           description: Código ya reservado, incluso si el activo fue dado de baja.
           content:
@@ -134,6 +146,13 @@ paths:
                       codigo:
                         enum:
                           - CODIGO_DUPLICADO
+  /equipos:
+    post:
+      operationId: crearEquipo
+      summary: Crear equipo con los mismos permisos y cupos de POST /activos
+      requestBody: *cuerpoCrearActivo
+      responses: *respuestasCrearActivo
+
   /activos/{id}:
     parameters:
       - name: id
@@ -171,6 +190,7 @@ paths:
     patch:
       operationId: modificarActivo
       summary: Editar activo (SUPERVISOR o JEFATURA); código inmutable
+      description: Asignar una sede requiere Empresa. Enviar sede_id null quita la asignación.
       requestBody:
         required: true
         content:
@@ -186,8 +206,16 @@ paths:
                 $ref: "#/components/schemas/ActivoRespuesta"
         "400": *a3
         "401": *a1
-        "403": *a2
-        "404": *a4
+        "403":
+          description: SIN_PERMISO o PLAN_EMPRESA_REQUERIDO.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+        "404":
+          description: ACTIVO_NO_ENCONTRADO o SEDE_NO_ENCONTRADA.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
     delete:
       operationId: darDeBajaActivo
       summary: Baja lógica (SUPERVISOR o JEFATURA)
@@ -344,6 +372,9 @@ components:
             - CODIGO_FORMATO_INVALIDO
             - CODIGO_DUPLICADO
             - ACTIVO_NO_ENCONTRADO
+            - CUPO_EQUIPOS_ALCANZADO
+            - PLAN_EMPRESA_REQUERIDO
+            - SEDE_NO_ENCONTRADA
         mensaje:
           type: string
           minLength: 1
@@ -373,6 +404,10 @@ components:
         ubicacion: *a6
         criticidad: &a7
           $ref: "#/components/schemas/CriticidadEquipo"
+        sede_id: &sedeOpcional
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 9007199254740991
       description: Estado inicial OPERATIVO y uso_acumulado_horas=0, asignados por servidor. Marca y
         modelo opcionales (null por defecto).
     ActivoActualizarSolicitud:
@@ -385,6 +420,7 @@ components:
         modelo: *a5
         ubicacion: *a6
         criticidad: *a7
+        sede_id: *sedeOpcional
         uso_acumulado_horas:
           type: number
           minimum: 0
@@ -413,6 +449,7 @@ components:
           type: integer
           minimum: 1
           maximum: 9007199254740991
+        sede_id: *a9
         codigo: *a8
         nombre: *a6
         marca: *a5

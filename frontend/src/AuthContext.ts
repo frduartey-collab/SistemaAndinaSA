@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { LoginSolicitud, UsuarioSesion } from '../../backend/src/dominio'
+import type { LoginSolicitud, PlanTenant, UsuarioSesion } from '../../backend/src/dominio'
 import type { llamarApi, OpcionesApi } from './api'
 
 export type SesionGuardada = {
@@ -17,6 +17,7 @@ export type RutaApi = Parameters<typeof llamarApi>[0]
 
 type DatosAuth = {
   estado: EstadoSesion
+  plan: PlanTenant | null
   puedeLeer: boolean
   puedeEscribir: boolean
   iniciarSesion: (datos: LoginSolicitud) => Promise<void>

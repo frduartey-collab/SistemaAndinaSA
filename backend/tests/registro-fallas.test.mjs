@@ -9,6 +9,7 @@ import { esquema } from '../dist/validacion.js';
 const password = 'AndinaPruebaHU03!';
 const hash = hashPassword(password);
 const registro = { rut: '66666666-6', nombre: 'Nueva cuenta', password, rol: 'TRABAJADOR' };
+const registroPublico = { ...registro, rol: 'JEFATURA', nombre_empresa: 'Cliente independiente' };
 
 async function fixture(t) {
   const datos = new Datos();
@@ -39,18 +40,20 @@ async function fixture(t) {
 
 test('Registro público crea una cuenta utilizable y guarda solo el hash', async (t) => {
   const f = await fixture(t);
-  const res = await f.api.post('/auth/register').send(registro).expect(201);
+  const res = await f.api.post('/auth/register').send(registroPublico).expect(201);
   assert(esquema('auth', 'UsuarioSesion')(res.body));
-  assert.equal(res.body.rol, 'TRABAJADOR');
+  assert.equal(res.body.rol, 'JEFATURA');
+  assert.equal(res.body.plan, 'PARTICULAR');
+  assert.notEqual(res.body.tenant_id, f.usuarios.SUPERVISOR.tenant_id);
   assert.equal(res.body.activo, true);
   assert.match(f.datos.usuarioPorRut(registro.rut).passwordHash, /^\$2[aby]\$/);
-  const duplicado = await f.api.post('/auth/register').send(registro).expect(409);
+  const duplicado = await f.api.post('/auth/register').send(registroPublico).expect(409);
   assert.equal(duplicado.body.codigo, 'RUT_DUPLICADO');
   await f.api.post('/auth/login').send({ rut: registro.rut, password }).expect(200);
 
-  const invalido = await f.api.post('/auth/register').send({ ...registro, rut: '77777777-1' }).expect(400);
+  const invalido = await f.api.post('/auth/register').send({ ...registroPublico, rut: '77777777-1' }).expect(400);
   assert.equal(invalido.body.codigo, 'RUT_INVALIDO');
-  await f.api.post('/auth/register').send({ ...registro, rut: '77777777-7', password: '🙂'.repeat(20) }).expect(400);
+  await f.api.post('/auth/register').send({ ...registroPublico, rut: '77777777-7', password: '🙂'.repeat(20) }).expect(400);
 });
 
 test('Registro exige autorización para roles reservados y evita altas simultáneas del mismo RUT', async (t) => {
@@ -65,7 +68,7 @@ test('Registro exige autorización para roles reservados y evita altas simultán
   await f.api.post('/auth/register').set('Authorization', await f.sesion('JEFATURA'))
     .send({ ...registro, rut: '77777777-7', rol: 'SUPERVISOR' }).expect(201);
 
-  const paralelo = { ...registro, rut: '88888888-8' };
+  const paralelo = { ...registroPublico, rut: '88888888-8' };
   const respuestas = await Promise.all([0, 1].map(() => f.api.post('/auth/register').send(paralelo)));
   assert.deepEqual(respuestas.map((res) => res.status).sort(), [201, 409]);
 });

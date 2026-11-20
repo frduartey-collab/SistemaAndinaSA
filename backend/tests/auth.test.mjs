@@ -42,7 +42,7 @@ test('HU01 Supertest 3: /auth/me acepta el token real del login', async t => {
   const f = await fixture(t), login = await f.login();
   const response = await f.api.get('/auth/me').set('Authorization', 'Bearer ' + login.body.token).expect(200);
   assert.deepEqual(response.body, login.body.usuario);
-  assert.deepEqual(Object.keys(response.body).sort(), ['activo','id','nombre','rol','rut']);
+  assert.deepEqual(Object.keys(response.body).sort(), ['activo','id','nombre','plan','rol','rut','tenant_id']);
 });
 
 test('HU01 Supertest 4: /auth/me sin token devuelve 401', async t => {

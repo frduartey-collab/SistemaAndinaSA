@@ -5,6 +5,7 @@ import { Datos } from './datos.js';
 import { Fallas } from './fallas.js';
 import { OrdenesTrabajo } from './ordenes.js';
 import { InventarioRepuestos } from './repuestos.js';
+import { Sedes } from './sedes.js';
 import { HistorialEquipos } from './historial-equipos.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
@@ -20,6 +21,8 @@ import type {
   MovimientoRepuestoSolicitud, RepuestoActualizarSolicitud, RepuestoCrearSolicitud,
 } from './dominio.js';
 
+import type { SedeSolicitud } from './dominio.js';
+
 interface Options {
   secret: string;
   datos?: Datos;
@@ -30,7 +33,8 @@ interface Options {
 }
 interface Context { usuario: UsuarioSesion; sesionId: string }
 export function publico(user: UsuarioSesion): UsuarioSesion {
-  return { id: user.id, rut: user.rut, nombre: user.nombre, rol: user.rol, activo: user.activo };
+  const { id, rut, nombre, rol, activo, tenant_id, plan } = user;
+  return { id, rut, nombre, rol, activo, tenant_id, plan };
 }
 
 export async function crearAplicacion(options: Options) {
@@ -45,6 +49,8 @@ export async function crearAplicacion(options: Options) {
   const inventario = new InventarioRepuestos(datos);
   const ordenes = new OrdenesTrabajo(datos, inventario);
   const historial = new HistorialEquipos(datos);
+  const sedes = new Sedes(datos);
+  datos.migrarTenantsOperativos();
   const dummy = await hashPassword(randomUUID());
   const app = express();
   app.disable('x-powered-by');
@@ -54,8 +60,9 @@ export async function crearAplicacion(options: Options) {
   // Solo este endpoint admite fotos codificadas y autoriza antes de leer el cuerpo.
   app.post('/fallas', autenticado, accesoFallas, express.json({ limit: '21mb', strict: true }), (req, res) => {
     const input = solicitud<FallaCrearSolicitud>('fallas', 'FallaCrearSolicitud', req.body);
-    const { id } = (res.locals as Context).usuario;
-    res.status(201).json(fallas.crear(input, id, now()));
+    const { id, tenant_id } = (res.locals as Context).usuario;
+    const falla = datos.enTenant(tenant_id, () => fallas.crear(input, id, now()));
+    res.status(201).json(falla);
   });
   app.use(express.json({ limit: '16kb', strict: true }));
 
@@ -64,6 +71,8 @@ export async function crearAplicacion(options: Options) {
     throw new ErrorAPI(429, 'DEMASIADOS_INTENTOS', 'Demasiados intentos. Intente más tarde.');
   }
   async function autenticado(req: Request, res: Response, next: NextFunction): Promise<void> {
+    let usuario: UsuarioSesion;
+    let sesionId: string;
     try {
       const match = /^Bearer ([^\s]+)$/i.exec(req.get('Authorization') ?? '');
       if (!match) throw new Error('Token ausente');
@@ -74,15 +83,20 @@ export async function crearAplicacion(options: Options) {
       const session = datos.sesion(payload.jti);
       if (!session || session.revocada !== 0 || Number(session.expira_en) <= now() || session.token_hash !== hashToken(token)
           || Number(session.usuario_id) !== Number(payload.sub)) throw new Error('Sesión inválida');
-      const user = datos.usuarioPorId(Number(payload.sub));
-      if (!user?.activo) throw new Error('Usuario no disponible');
-      res.locals.usuario = publico(user);
-      res.locals.sesionId = payload.jti;
-      next();
+      const user = datos.usuarioPorIdGlobal(Number(payload.sub));
+      if (!user?.activo || user.tenant_id !== Number(session.tenant_id)
+          || datos.tenantPorId(user.tenant_id)?.estado !== 'ACTIVO') throw new Error('Usuario no disponible');
+      usuario = publico(user);
+      sesionId = payload.jti;
     } catch {
       res.setHeader('WWW-Authenticate', 'Bearer');
       next(new ErrorAPI(401, 'NO_AUTORIZADO', 'Se requiere una sesión válida.'));
+      return;
     }
+
+    res.locals.usuario = usuario;
+    res.locals.sesionId = sesionId;
+    datos.enTenant(usuario.tenant_id, () => next());
   }
   function leerActivos(_req: Request, res: Response, next: NextFunction): void {
     const rol = (res.locals as Context).usuario.rol;
@@ -107,27 +121,29 @@ export async function crearAplicacion(options: Options) {
     if (datos.intentos(rut, now()) >= max) bloqueado(rut, res);
     if (!user || !correct) {
       datos.fallarLogin(rut, now(), windowMs);
-      datos.auditar(null, 'LOGIN_RECHAZADO', null, now());
+      if (user) datos.enTenant(user.tenant_id, () => datos.auditar(null, 'LOGIN_RECHAZADO', null, now()));
       throw new ErrorAPI(401, 'CREDENCIALES_INVALIDAS', 'Las credenciales no son válidas.');
     }
-    if (!user.activo) {
+    const tenant = datos.tenantPorId(user.tenant_id);
+    if (!user.activo || tenant?.estado !== 'ACTIVO') {
       datos.fallarLogin(rut, now(), windowMs);
       throw new ErrorAPI(403, 'USUARIO_INACTIVO', 'El usuario está inactivo.');
     }
     if (user.passwordHash.startsWith('scrypt$') && Buffer.byteLength(input.password) <= 72) {
-      datos.actualizarPassword(user.id, await hashPassword(input.password));
+      const hash = await hashPassword(input.password);
+      datos.enTenant(tenant.id, () => datos.actualizarPassword(user.id, hash));
     }
     const id = randomUUID();
     const issued = Math.floor(now() / 1000);
     const token = jwt.sign({ iat: issued }, options.secret, {
       algorithm: 'HS256', subject: String(user.id), jwtid: id, issuer: 'andina', audience: 'andina-api', expiresIn: ttl,
     });
-    datos.transaccion(() => {
+    datos.enTenant(tenant.id, () => datos.transaccion(() => {
       datos.crearSesion(id, user.id, hashToken(token), (issued + ttl) * 1000);
       datos.limpiarIntentos(rut);
       datos.auditar(user.id, 'LOGIN_CORRECTO', null, now());
-    });
-    const body: LoginRespuesta = { token, usuario: publico(user), expiraEn: ttl };
+    }));
+    const body: LoginRespuesta = { token, usuario: publico({ ...user, plan: tenant.plan }), expiraEn: ttl };
     res.status(200).json(body);
   });
   app.post('/auth/register', (req, res, next) => {
@@ -143,10 +159,21 @@ export async function crearAplicacion(options: Options) {
   }, async (req, res) => {
     const input = solicitud<RegistroSolicitud>('auth', 'RegistroSolicitud', req.body);
     const actor = res.locals.usuario as UsuarioSesion | undefined;
-    const rolPublico = input.rol === 'TECNICO' || input.rol === 'TRABAJADOR';
-    const puedeCrearBodega = input.rol === 'BODEGA' && actor?.rol === 'SUPERVISOR';
-    if (!rolPublico && !puedeCrearBodega && actor?.rol !== 'JEFATURA') {
-      throw new ErrorAPI(403, 'SIN_PERMISO', 'Tu sesión no permite asignar ese rol.');
+    if (actor) {
+      if (!administrar(actor.rol) || (actor.rol === 'SUPERVISOR'
+          && !['TECNICO', 'TRABAJADOR', 'BODEGA'].includes(input.rol))) {
+        throw new ErrorAPI(403, 'SIN_PERMISO', 'Tu sesión no permite asignar ese rol.');
+      }
+      if (input.nombre_empresa !== undefined) {
+        throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'La cuenta se crea dentro de tu organización.');
+      }
+    } else {
+      if (input.rol !== 'JEFATURA') {
+        throw new ErrorAPI(403, 'SIN_PERMISO', 'El registro público crea la cuenta responsable de una organización nueva.');
+      }
+      if (!input.nombre_empresa) {
+        throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'Ingresa el nombre de tu organización.');
+      }
     }
 
     const rut = input.rut.toUpperCase();
@@ -166,13 +193,17 @@ export async function crearAplicacion(options: Options) {
 
     verificarRutLibre();
     const passwordHash = await hashPassword(input.password);
+    const ahora = now();
     const usuario = datos.transaccion(() => {
       verificarRutLibre();
-      const creado = datos.crearUsuario({
-        rut, nombre: input.nombre.trim(), passwordHash, rol: input.rol, activo: true,
+      const tenantId = actor?.tenant_id ?? datos.crearTenant(input.nombre_empresa!.trim(), 'PARTICULAR', ahora).id;
+      return datos.enTenant(tenantId, () => {
+        const creado = datos.crearUsuario({
+          rut, nombre: input.nombre.trim(), passwordHash, rol: input.rol, activo: true,
+        });
+        datos.auditar(actor?.id ?? creado.id, 'USUARIO_REGISTRADO', creado.id, ahora);
+        return creado;
       });
-      datos.auditar(actor?.id ?? creado.id, 'USUARIO_REGISTRADO', creado.id, now());
-      return creado;
     });
     res.status(201).json(publico(usuario));
   });
@@ -189,11 +220,13 @@ export async function crearAplicacion(options: Options) {
   app.get('/activos', autenticado, leerActivos, (req, res) => {
     res.json(datos.listar(consultaActivos(req.query)));
   });
-  app.post('/activos', autenticado, escribirActivos, (req, res) => {
+  function crearActivo(req: Request, res: Response): void {
     const input = solicitud<ActivoCrearSolicitud>('activos', 'ActivoCrearSolicitud', req.body);
     const result = datos.crear(input, (res.locals as Context).usuario.id, now());
     res.location('/activos/' + result.id).status(201).json(result);
-  });
+  }
+  app.post('/activos', autenticado, escribirActivos, crearActivo);
+  app.post('/equipos', autenticado, escribirActivos, crearActivo);
   app.get('/activos/:id', autenticado, leerActivos, (req, res) => {
     res.json(datos.obtener(idPositivo(req.params.id)));
   });
@@ -351,6 +384,32 @@ export async function crearAplicacion(options: Options) {
     const input = solicitud<MovimientoRepuestoSolicitud>('repuestos', 'MovimientoRepuestoSolicitud', req.body);
     const { id } = (res.locals as Context).usuario;
     res.status(201).json(inventario.mover(repuestoId, input, id, now()));
+  });
+
+  function requiereEmpresa(_req: Request, res: Response, next: NextFunction): void {
+    if ((res.locals as Context).usuario.plan !== 'EMPRESA') {
+      throw new ErrorAPI(403, 'PLAN_EMPRESA_REQUERIDO', 'La gestión de sedes está disponible en el plan Empresa.');
+    }
+    next();
+  }
+
+  app.get('/sedes', autenticado, requiereEmpresa, (_req, res) => {
+    res.json(sedes.listar());
+  });
+  app.get('/sedes/:id', autenticado, requiereEmpresa, (req, res) => {
+    res.json(sedes.obtener(idPositivo(req.params.id)));
+  });
+  app.post('/sedes', autenticado, requiereEmpresa, escribirActivos, (req, res) => {
+    const ficha = solicitud<SedeSolicitud>('sedes', 'SedeSolicitud', req.body);
+    res.status(201).json(sedes.crear(ficha, (res.locals as Context).usuario.id, now()));
+  });
+  app.put('/sedes/:id', autenticado, requiereEmpresa, escribirActivos, (req, res) => {
+    const ficha = solicitud<SedeSolicitud>('sedes', 'SedeSolicitud', req.body);
+    res.json(sedes.editar(idPositivo(req.params.id), ficha, (res.locals as Context).usuario.id, now()));
+  });
+  app.delete('/sedes/:id', autenticado, requiereEmpresa, escribirActivos, (req, res) => {
+    sedes.eliminar(idPositivo(req.params.id), (res.locals as Context).usuario.id, now());
+    res.status(204).end();
   });
 
   app.use((_req, res) => { res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'La ruta no existe.' }); });

@@ -345,7 +345,7 @@ test('GWT-HU02-14 RF-02: migra legado una vez, conserva IDs y persiste las bajas
     assert.equal(datos.listar({ page: 1, size: 20 }).total, 0);
     assert.equal(datos.db.prepare('SELECT count(*) AS n FROM activos').get().n, 2);
     assert.equal(datos.db.prepare('SELECT count(*) AS n FROM equipos').get().n, 2);
-    assert.equal(datos.db.prepare('SELECT count(*) AS n FROM migraciones').get().n, 1);
+    assert.equal(datos.db.prepare('SELECT count(*) AS n FROM migraciones WHERE version = 1').get().n, 1);
     assert.throws(() => datos.crear({ ...nuevo, codigo: 'EQ-0008' }, actor.id, Date.now()), /reservado/);
     datos.close();
 });

@@ -9,7 +9,7 @@ import type {
 } from './dominio.js';
 import { ErrorAPI } from './errores.js';
 
-type Contrato = 'auth' | 'activos' | 'fallas' | 'ordenes' | 'repuestos' | 'notificaciones';
+type Contrato = 'auth' | 'activos' | 'fallas' | 'ordenes' | 'repuestos' | 'notificaciones' | 'sedes';
 interface Documento { components: { schemas: Record<string, object> } }
 const ajv = new Ajv2020({ strict: false, strictNumbers: true, allErrors: true });
 const addFormats = createRequire(import.meta.url)('ajv-formats') as (instance: Ajv2020) => void;

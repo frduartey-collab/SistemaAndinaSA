@@ -135,12 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const rol = estado.tipo === 'activa' ? estado.usuario.rol : null
+  const plan = estado.tipo === 'activa' ? estado.usuario.plan : null
   const puedeEscribir = rol === 'SUPERVISOR' || rol === 'JEFATURA'
   const puedeLeer = puedeEscribir || rol === 'TECNICO' || rol === 'TRABAJADOR'
 
   return (
     <AuthContext.Provider value={{
-      estado, puedeLeer, puedeEscribir, iniciarSesion, cerrarSesion, reintentar, solicitar,
+      estado, plan, puedeLeer, puedeEscribir, iniciarSesion, cerrarSesion, reintentar, solicitar,
     }}>
       {children}
     </AuthContext.Provider>
