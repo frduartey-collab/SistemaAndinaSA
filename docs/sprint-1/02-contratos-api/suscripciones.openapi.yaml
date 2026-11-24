@@ -1,0 +1,243 @@
+openapi: 3.1.0
+info:
+  title: Manufacturas Andina — Suscripciones y cobros de prueba
+  version: 0.1.0
+  description: Gestión de la suscripción de la empresa. Jefatura opera el checkout y el simulador. El webhook procesa confirmaciones firmadas y no inicia pagos.
+security:
+  - bearerAuth: []
+paths:
+  /suscripciones:
+    get:
+      operationId: consultarSuscripcion
+      summary: Consultar el plan actual y el historial de cobros de la empresa
+      responses:
+        "200": { $ref: "#/components/responses/Resumen" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+  /suscripciones/checkout:
+    post:
+      operationId: crearCheckoutSuscripcion
+      summary: Crear un checkout pendiente con tarifa fijada por el servidor
+      description: |
+        Cuota mensual en CLP de 54990 para Particular y 600000 para Empresa. La primera
+        activación pagada de Empresa tiene puesta en marcha de 2500000 CLP.
+        Repetir el checkout del mismo plan pendiente devuelve ese registro.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckoutSuscripcionSolicitud" }
+      responses:
+        "201":
+          description: Checkout pendiente de confirmación.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SuscripcionRespuesta" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "409":
+          description: CHECKOUT_PENDIENTE o PLAN_YA_ACTIVO.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  /suscripciones/{id}/cancelar:
+    post:
+      operationId: cancelarSuscripcion
+      summary: Cancelar un checkout o una suscripción de la empresa
+      description: Una suscripción activa vuelve al plan Particular. Cancelar un checkout pendiente conserva el plan actual. La operación se puede repetir.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      responses:
+        "200": { $ref: "#/components/responses/Resumen" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/SuscripcionNoEncontrada" }
+  /suscripciones/{id}/simular-pago:
+    post:
+      operationId: simularPagoSuscripcion
+      summary: Confirmar un único pago simulado de un checkout pendiente
+      description: Solo está disponible si el servidor habilitó la simulación. Repetir la confirmación de ese checkout no crea otro cobro.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      responses:
+        "200": { $ref: "#/components/responses/Resumen" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/SuscripcionNoEncontrada" }
+        "409":
+          description: ESTADO_SUSCRIPCION_INVALIDO. Se requiere un checkout pendiente.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  /suscripciones/webhook:
+    post:
+      operationId: confirmarPagoSuscripcion
+      summary: Confirmar el pago inicial o una renovación
+      description: |
+        La firma es sha256= seguida de 64 caracteres hexadecimales minúsculos,
+        calculada con HMAC-SHA-256 sobre los bytes exactos del JSON UTF-8.
+        El servidor obtiene la empresa y el plan desde suscripcion_id.
+        Un evento repetido con los mismos datos se reconoce sin duplicar el
+        cobro. El monto debe coincidir con la cuota y la puesta en marcha
+        del checkout pendiente, o con la cuota para una renovación.
+      security:
+        - firmaPago: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventoPagoSuscripcion" }
+      responses:
+        "204": { description: Confirmación registrada o repetida. }
+        "400":
+          description: DATOS_INVALIDOS o MONTO_PAGO_INVALIDO.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+        "401":
+          description: FIRMA_PAGO_INVALIDA. Falta una firma válida.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+        "404": { $ref: "#/components/responses/SuscripcionNoEncontrada" }
+        "409":
+          description: EVENTO_PAGO_CONFLICTO o ESTADO_SUSCRIPCION_INVALIDO.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+        "503":
+          description: PAGOS_NO_CONFIGURADOS. El webhook está deshabilitado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    firmaPago: { type: apiKey, in: header, name: x-sigem-signature }
+  responses:
+    Resumen:
+      description: Estado de la suscripción y cobros del más reciente al más antiguo.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ResumenSuscripcion" }
+    DatosInvalidos:
+      description: DATOS_INVALIDOS. Entrada fuera del contrato.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    NoAutorizado:
+      description: NO_AUTORIZADO. Se requiere una sesión válida.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string, const: Bearer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    SinPermiso:
+      description: SIN_PERMISO o SIMULACION_PAGO_DESACTIVADA.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    SuscripcionNoEncontrada:
+      description: SUSCRIPCION_NO_ENCONTRADA. El checkout no existe o no pertenece a la empresa consultada.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Id: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    Pesos: { type: integer, minimum: 0, maximum: 9007199254740991 }
+    PlanTenant:
+      type: string
+      enum: [PARTICULAR, EMPRESA]
+    EstadoSuscripcion:
+      type: string
+      enum: [PENDIENTE, ACTIVA, CANCELADA]
+    MetodoPagoRef:
+      type: string
+      maxLength: 120
+      minLength: 1
+      pattern: '^[A-Za-z][A-Za-z0-9._:-]*$'
+      not: { pattern: '\s' }
+      description: Referencia opaca al método de pago. El servicio no recibe números de tarjeta.
+    CheckoutSuscripcionSolicitud:
+      type: object
+      additionalProperties: false
+      required: [plan]
+      properties:
+        plan: { $ref: "#/components/schemas/PlanTenant" }
+    SuscripcionRespuesta:
+      type: object
+      additionalProperties: false
+      required: [id, plan, estado, monto_clp, fecha_renovacion, metodo_pago_ref, puesta_marcha_clp]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        plan: { $ref: "#/components/schemas/PlanTenant" }
+        estado: { $ref: "#/components/schemas/EstadoSuscripcion" }
+        monto_clp:
+          $ref: "#/components/schemas/Pesos"
+          description: Cuota mensual sin la puesta en marcha.
+        fecha_renovacion: { type: [string, "null"], format: date-time }
+        metodo_pago_ref:
+          oneOf:
+            - { $ref: "#/components/schemas/MetodoPagoRef" }
+            - { type: "null" }
+        puesta_marcha_clp: { $ref: "#/components/schemas/Pesos" }
+    CobroSuscripcion:
+      type: object
+      additionalProperties: false
+      required: [id, suscripcion_id, plan, monto_clp, puesta_marcha_clp, fecha, metodo_pago_ref]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        suscripcion_id: { $ref: "#/components/schemas/Id" }
+        plan: { $ref: "#/components/schemas/PlanTenant" }
+        monto_clp:
+          $ref: "#/components/schemas/Pesos"
+          description: Total de este cobro, incluida la puesta en marcha cuando corresponda.
+        puesta_marcha_clp: { $ref: "#/components/schemas/Pesos" }
+        fecha: { type: string, format: date-time }
+        metodo_pago_ref:
+          oneOf:
+            - { $ref: "#/components/schemas/MetodoPagoRef" }
+            - { type: "null" }
+    ResumenSuscripcion:
+      type: object
+      additionalProperties: false
+      required: [plan_actual, activa, pendiente, cobros, simulacion_disponible]
+      properties:
+        plan_actual: { $ref: "#/components/schemas/PlanTenant" }
+        activa:
+          oneOf:
+            - { $ref: "#/components/schemas/SuscripcionRespuesta" }
+            - { type: "null" }
+        pendiente:
+          oneOf:
+            - { $ref: "#/components/schemas/SuscripcionRespuesta" }
+            - { type: "null" }
+        cobros: { type: array, items: { $ref: "#/components/schemas/CobroSuscripcion" } }
+        simulacion_disponible: { type: boolean }
+    EventoPagoSuscripcion:
+      type: object
+      additionalProperties: false
+      required: [evento_id, suscripcion_id, monto_clp]
+      properties:
+        evento_id:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: '^[A-Za-z0-9._:-]+$'
+          not: { pattern: '\s' }
+        suscripcion_id: { $ref: "#/components/schemas/Id" }
+        monto_clp: { $ref: "#/components/schemas/Pesos" }
+        metodo_pago_ref: { $ref: "#/components/schemas/MetodoPagoRef" }
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          enum: [DATOS_INVALIDOS, NO_AUTORIZADO, SIN_PERMISO, CHECKOUT_PENDIENTE, PLAN_YA_ACTIVO, SUSCRIPCION_NO_ENCONTRADA, SIMULACION_PAGO_DESACTIVADA, ESTADO_SUSCRIPCION_INVALIDO, FIRMA_PAGO_INVALIDA, MONTO_PAGO_INVALIDO, EVENTO_PAGO_CONFLICTO, PAGOS_NO_CONFIGURADOS]
+        mensaje: { type: string, minLength: 1 }

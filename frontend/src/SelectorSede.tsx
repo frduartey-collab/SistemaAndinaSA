@@ -9,11 +9,14 @@ type Estado =
   | { tipo: 'error'; mensaje: string }
   | { tipo: 'lista'; sedes: SedeRespuesta[] }
 
-export function SelectorSede({ valor, alCambiar }: { valor: string; alCambiar: (valor: string) => void }) {
+export function SelectorSede({ valor, alCambiar, fija = false, id = 'equipo-sede', etiqueta = 'Sede',
+  ninguna = 'Sin sede asignada' }: {
+  valor: string; alCambiar: (valor: string) => void; fija?: boolean; id?: string; etiqueta?: string; ninguna?: string
+}) {
   const { solicitar } = useAuth()
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' })
   const [revision, setRevision] = useState(0)
-  const sedes = estado.tipo === 'lista' ? estado.sedes : []
+  const sedes = estado.tipo === 'lista' ? estado.sedes.filter((sede) => !fija || String(sede.id) === valor) : []
   const faltaSede = Boolean(valor) && !sedes.some((sede) => String(sede.id) === valor)
 
   useEffect(() => {
@@ -35,10 +38,10 @@ export function SelectorSede({ valor, alCambiar }: { valor: string; alCambiar: (
 
   return (
     <div className="campo">
-      <label htmlFor="equipo-sede">Sede</label>
-      <select id="equipo-sede" name="sede" value={valor} disabled={estado.tipo !== 'lista'}
+      <label htmlFor={id}>{etiqueta}</label>
+      <select id={id} name="sede" value={valor} disabled={fija || estado.tipo !== 'lista'}
         onChange={(evento) => alCambiar(evento.target.value)}>
-        <option value="">Sin sede asignada</option>
+        {!fija && <option value="">{ninguna}</option>}
         {faltaSede && <option value={valor}>Sede #{valor}</option>}
         {sedes.map((sede) => <option key={sede.id} value={String(sede.id)}>{sede.nombre}</option>)}
       </select>

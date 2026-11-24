@@ -13,17 +13,23 @@ const ordenes = parse(read('docs/sprint-1/02-contratos-api/ordenes.openapi.yaml'
 const repuestos = parse(read('docs/sprint-1/02-contratos-api/repuestos.openapi.yaml'));
 const sedes = parse(read('docs/sprint-1/02-contratos-api/sedes.openapi.yaml'));
 const notificaciones = parse(read('docs/sprint-1/02-contratos-api/notificaciones.openapi.yaml'));
+const preventivos = parse(read('docs/sprint-1/02-contratos-api/preventivos.openapi.yaml'));
+
+const dashboard = parse(read('docs/sprint-1/02-contratos-api/dashboard.openapi.yaml'));
+const suscripciones = parse(read('docs/sprint-1/02-contratos-api/suscripciones.openapi.yaml'));
+const usuarios = parse(read('docs/sprint-1/02-contratos-api/usuarios.openapi.yaml'));
+const erp = parse(read('docs/sprint-1/02-contratos-api/erp.openapi.yaml'));
 
 test('CONTRATOS: las rutas del código coinciden con OpenAPI', () => {
   const methods = ['get', 'post', 'patch', 'delete', 'put'];
-  const expected = [auth, activos, fallas, ordenes, repuestos, notificaciones, sedes].flatMap(doc => Object.entries(doc.paths).flatMap(([path, ops]) => Object.keys(ops).filter(m => methods.includes(m)).map(m => m.toUpperCase() + ' ' + path))).sort();
+  const expected = [auth, activos, fallas, ordenes, repuestos, notificaciones, sedes, preventivos, dashboard, suscripciones, usuarios, erp].flatMap(doc => Object.entries(doc.paths).flatMap(([path, ops]) => Object.keys(ops).filter(m => methods.includes(m)).map(m => m.toUpperCase() + ' ' + path))).sort();
   const actual = [...read('backend/src/app.ts').matchAll(/app\.(get|post|patch|delete|put)\('([^']+)'/g)]
     .map(([,method,path]) => method.toUpperCase() + ' ' + path.replace(/:([a-zA-Z]+)(?=\/|$)/g, '{$1}')).sort();
   assert.deepEqual(actual, expected);
 });
 test('CONTRATOS: enums de dominio y YAML coinciden', () => {
   const source = read('backend/src/dominio.ts');
-  for (const [name, doc] of [['Rol', auth], ['PlanTenant', auth], ['CriticidadEquipo', activos], ['EstadoEquipo', activos], ['EstadoOrden', ordenes], ['TipoMovimientoRepuesto', repuestos], ['TipoFotoFalla', fallas]]) {
+  for (const [name, doc] of [['Rol', auth], ['PlanTenant', auth], ['CriticidadEquipo', activos], ['EstadoEquipo', activos], ['EstadoOrden', ordenes], ['TipoMovimientoRepuesto', repuestos], ['TipoFotoFalla', fallas], ['TipoDisparadorPreventivo', preventivos]]) {
     const match = new RegExp('export type ' + name + ' = ([^;]+);').exec(source);
     const values = [...match[1].matchAll(/'([^']+)'/g)].map(item => item[1]);
     assert.deepEqual(values, doc.components.schemas[name].enum);
@@ -43,4 +49,5 @@ test('CONTRATOS: las respuestas 204 no tienen cuerpo definido', () => {
   assert.equal(activos.paths['/activos/{id}'].delete.responses['204'].content, undefined);
   assert.equal(repuestos.paths['/repuestos/{id}'].delete.responses['204'].content, undefined);
   assert.equal(notificaciones.paths['/notificaciones/{id}/leida'].patch.responses['204'].content, undefined);
+  assert.equal(suscripciones.paths['/suscripciones/webhook'].post.responses['204'].content, undefined);
 });

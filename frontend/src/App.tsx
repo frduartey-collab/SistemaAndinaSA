@@ -2,22 +2,27 @@ import { Icono } from './Icono'
 import { MarcaSigem } from './MarcaSigem'
 import { useState } from 'react'
 import { AjustesInterfaz } from './AjustesInterfaz'
-import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router'
+import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router'
 import { useAuth } from './AuthContext'
 import { AvisosFallas } from './AvisosFallas'
 import { CatalogoEquipos } from './CatalogoEquipos'
+import { DashboardGerencial } from './DashboardGerencial'
 import { DetalleFalla } from './DetalleFalla'
 import { GestionSedes } from './GestionSedes'
 import { InicioTrabajador } from './InicioTrabajador'
+import { IntegracionERP } from './IntegracionERP'
 import { InventarioBodega } from './InventarioBodega'
 import { LandingPlanes } from './LandingPlanes'
 import { Login } from './Login'
+import { MantenimientoPreventivo } from './MantenimientoPreventivo'
+import { MiSuscripcion } from './MiSuscripcion'
 import { Registro } from './Registro'
 import { ReportarFalla } from './ReportarFalla'
 import { OrdenesTrabajo } from './OrdenesTrabajo'
 import type { BorradorEquipo } from './FormularioEquipo'
 import { etiquetasRol } from './activos'
 import { mensajeError } from './api'
+import { leerPlan, rutaConPlan } from './planes'
 
 function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
   alSalir: () => void
@@ -27,8 +32,12 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
   const { estado, plan, puedeLeer, puedeEscribir, cerrarSesion } = useAuth()
   const [saliendo, setSaliendo] = useState(false)
   const [error, setError] = useState('')
+  const { pathname, search } = useLocation()
 
-  if (estado.tipo !== 'activa') return <Navigate to="/login" replace />
+  if (estado.tipo !== 'activa') {
+    const planSolicitado = pathname === '/suscripcion' ? leerPlan(new URLSearchParams(search)) : null
+    return <Navigate to={rutaConPlan('/login', planSolicitado)} replace />
+  }
 
   async function salir() {
     if (saliendo) return
@@ -58,12 +67,18 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
               )}
               {puedeLeer && (
                 <>
+                  {puedeEscribir && (
+                    <NavLink className="enlace-nav" to="/dashboard"><span className="icono-nav"><Icono nombre="grafico" /></span>Dashboard gerencial</NavLink>
+                  )}
                   <NavLink className="enlace-nav" to="/equipos"><span className="icono-nav"><Icono nombre="equipo" /></span>Equipos</NavLink>
                   <NavLink className="enlace-nav" to="/fallas"><span className="icono-nav"><Icono nombre="falla" /></span>Fallas</NavLink>
                 </>
               )}
               {puedeVerOrdenes && (
-                <NavLink className="enlace-nav" to="/ordenes"><span className="icono-nav"><Icono nombre="orden" /></span>Órdenes</NavLink>
+                <>
+                  <NavLink className="enlace-nav" to="/ordenes"><span className="icono-nav"><Icono nombre="orden" /></span>Órdenes</NavLink>
+                  <NavLink className="enlace-nav" to="/preventivos"><span className="icono-nav"><Icono nombre="pendiente" /></span>Preventivos</NavLink>
+                </>
               )}
               {puedeVerInventario && (
                 <NavLink className="enlace-nav" to="/inventario"><span className="icono-nav"><Icono nombre="inventario" /></span>Inventario</NavLink>
@@ -73,6 +88,12 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
               )}
               {puedeEscribir && (
                 <NavLink className="enlace-nav" to="/avisos"><span className="icono-nav"><Icono nombre="aviso" /></span>Avisos</NavLink>
+              )}
+              {estado.usuario.rol === 'JEFATURA' && (
+                <>
+                  <NavLink className="enlace-nav" to="/suscripcion"><span className="icono-nav"><Icono nombre="pago" /></span>Mi suscripción</NavLink>
+                  {plan === 'EMPRESA' && <NavLink className="enlace-nav" to="/integraciones/erp"><span className="icono-nav"><Icono nombre="cambiar" /></span>Integración ERP</NavLink>}
+                </>
               )}
               {puedeEscribir && <NavLink className="enlace-nav" to="/registro"><span className="icono-nav"><Icono nombre="cuenta" /></span>Crear cuenta</NavLink>}
             </nav>
@@ -136,6 +157,24 @@ function Sistema() {
         <Route path="/inicio" element={rol === 'TRABAJADOR'
           ? <InicioTrabajador />
           : <Navigate to={destinoInicio} replace />} />
+        <Route path="/dashboard" element={puedeEscribir ? <DashboardGerencial key={usuarioId} /> : (
+          <section className="panel estado-pagina">
+            <h1>Acceso restringido</h1>
+            <p>El dashboard gerencial está disponible para Supervisor y Jefatura.</p>
+          </section>
+        )} />
+        <Route path="/suscripcion" element={rol === 'JEFATURA' ? <MiSuscripcion key={usuarioId} /> : (
+          <section className="panel estado-pagina">
+            <h1>Acceso restringido</h1>
+            <p>La gestión de la suscripción está disponible para Jefatura.</p>
+          </section>
+        )} />
+        <Route path="/integraciones/erp" element={rol === 'JEFATURA' && plan === 'EMPRESA' ? <IntegracionERP key={usuarioId} /> : (
+          <section className="panel estado-pagina">
+            <h1>Acceso restringido</h1>
+            <p>Integración ERP está disponible para Jefatura del Plan Empresa.</p>
+          </section>
+        )} />
         <Route
           path="/equipos"
           element={puedeLeer && usuarioId !== null ? (
@@ -156,6 +195,9 @@ function Sistema() {
         )} />
         <Route path="/ordenes" element={puedeVerOrdenes
           ? <OrdenesTrabajo />
+          : <Navigate to={puedeLeer ? '/fallas' : '/sin-acceso'} replace />} />
+        <Route path="/preventivos" element={puedeVerOrdenes
+          ? <MantenimientoPreventivo key={usuarioId} />
           : <Navigate to={puedeLeer ? '/fallas' : '/sin-acceso'} replace />} />
         <Route path="/inventario" element={puedeVerInventario ? <InventarioBodega key={usuarioId} /> : (
           <section className="panel estado-pagina">

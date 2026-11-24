@@ -1,0 +1,174 @@
+openapi: 3.1.0
+info:
+  title: SIGEM · Integración ERP
+  version: 1.0.0
+paths:
+  /integraciones/erp:
+    get:
+      operationId: obtenerIntegracionERP
+      summary: Consultar la configuración ERP de la organización Empresa
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/Configuracion" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: configurarIntegracionERP
+      summary: Guardar la URL HTTPS y el estado de la integración como Jefatura
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IntegracionERPSolicitud" }
+      responses:
+        "200": { $ref: "#/components/responses/Configuracion" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /integraciones/erp/clave:
+    post:
+      operationId: rotarClaveERP
+      summary: Generar una API Key que se muestra una sola vez y reemplaza la anterior
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201":
+          description: Nueva API Key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClaveERP" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/v1/erp/costos-repuestos:
+    get:
+      operationId: exportarCostosRepuestosERP
+      summary: Consultar costos unitarios de repuestos vigentes de la organización
+      security: [{ apiKeyERP: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        "200":
+          description: Página de costos y existencias. Un costo nulo indica que falta registrarlo.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginaCostosERP" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/v1/erp/sync-stock:
+    post:
+      operationId: sincronizarStockERP
+      summary: Ajustar existencias del catálogo mediante movimientos auditados
+      description: Actualiza el lote en una transacción. Una referencia repetida con los mismos artículos devuelve el recibo original sin aplicar movimientos otra vez.
+      security: [{ apiKeyERP: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SyncStockERPSolicitud" }
+      responses:
+        "200":
+          description: Recibo del lote aplicado.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SyncStockERPRespuesta" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    apiKeyERP: { type: apiKey, name: X-API-Key, in: header }
+  responses:
+    Configuracion:
+      description: Configuración de la integración sin el secreto.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/IntegracionERPRespuesta" }
+    Error:
+      description: Solicitud inválida, permisos insuficientes o conflicto de actualización.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Codigo: { type: string, pattern: '^[A-Za-z0-9._-]{1,60}$' }
+    Unidades: { type: integer, minimum: 0, maximum: 9007199254740991 }
+    CostoCLP: { type: [integer, "null"], minimum: 0, maximum: 1000000000 }
+    WebhookERP:
+      type: [string, "null"]
+      format: uri
+      maxLength: 500
+      pattern: '^https://'
+      description: URL HTTPS opcional, sin credenciales, parámetros ni fragmentos.
+    Referencia: { type: string, minLength: 1, maxLength: 100, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$' }
+    IntegracionERPSolicitud:
+      type: object
+      additionalProperties: false
+      required: [webhook_url, activo]
+      properties:
+        webhook_url: { $ref: "#/components/schemas/WebhookERP" }
+        activo: { type: boolean }
+    IntegracionERPRespuesta:
+      type: object
+      additionalProperties: false
+      required: [webhook_url, activo, clave_configurada]
+      properties:
+        webhook_url: { $ref: "#/components/schemas/WebhookERP" }
+        activo: { type: boolean }
+        clave_configurada: { type: boolean }
+    ClaveERP:
+      type: object
+      additionalProperties: false
+      required: [api_key]
+      properties:
+        api_key: { type: string, pattern: '^sigem_erp_[A-Za-z0-9_-]{43}$' }
+    CostoERP:
+      type: object
+      additionalProperties: false
+      required: [codigo, nombre, stock_actual, costo_unitario_clp]
+      properties:
+        codigo: { $ref: "#/components/schemas/Codigo" }
+        nombre: { type: string }
+        stock_actual: { $ref: "#/components/schemas/Unidades" }
+        costo_unitario_clp: { $ref: "#/components/schemas/CostoCLP" }
+    PaginaCostosERP:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, size]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/CostoERP" } }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+    StockERP:
+      type: object
+      additionalProperties: false
+      required: [codigo, stock_actual]
+      properties:
+        codigo: { $ref: "#/components/schemas/Codigo" }
+        stock_actual: { $ref: "#/components/schemas/Unidades" }
+    SyncStockERPSolicitud:
+      type: object
+      additionalProperties: false
+      required: [referencia, items]
+      properties:
+        referencia: { $ref: "#/components/schemas/Referencia" }
+        items: { type: array, minItems: 1, maxItems: 100, items: { $ref: "#/components/schemas/StockERP" } }
+    SyncStockERPRespuesta:
+      type: object
+      additionalProperties: false
+      required: [referencia, actualizados]
+      properties:
+        referencia: { $ref: "#/components/schemas/Referencia" }
+        actualizados: { type: integer, minimum: 0, maximum: 100 }
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo: { type: string }
+        mensaje: { type: string }

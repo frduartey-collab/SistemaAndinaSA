@@ -1,0 +1,208 @@
+openapi: 3.1.0
+info:
+  title: Manufacturas Andina — Planes de mantenimiento preventivo
+  version: 0.1.0
+security:
+  - bearerAuth: []
+paths:
+  /preventivos:
+    get:
+      operationId: listarPreventivos
+      summary: Consultar planes preventivos de la empresa
+      description: Jefatura y Supervisor ven todos los planes de su empresa. Técnico ve los planes asignados.
+      responses:
+        "200":
+          description: Planes en orden de identificador descendente. La alerta al vencer se activa solo en el plan Empresa.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PlanPreventivoRespuesta" } }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+    post:
+      operationId: crearPreventivo
+      summary: Programar un plan preventivo
+      description: Jefatura y Supervisor asignan un equipo y un técnico activo de su empresa. HORAS_USO requiere el plan Empresa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanPreventivoCrearSolicitud" }
+      responses:
+        "201": { $ref: "#/components/responses/Preventivo" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409": { $ref: "#/components/responses/TecnicoNoDisponible" }
+  /preventivos/{id}:
+    patch:
+      operationId: activarPreventivo
+      summary: Activar o desactivar un plan existente
+      description: Jefatura y Supervisor pueden cambiar el estado del plan. Las órdenes ya generadas conservan su estado.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanPreventivoActualizarSolicitud" }
+      responses:
+        "200": { $ref: "#/components/responses/Preventivo" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404": { $ref: "#/components/responses/NoEncontrado" }
+        "409": { $ref: "#/components/responses/TecnicoNoDisponible" }
+  /preventivos/evaluar:
+    post:
+      operationId: evaluarPreventivos
+      summary: Generar las órdenes de los planes vencidos
+      description: |
+        Jefatura y Supervisor pueden ejecutar la misma evaluación que usa el
+        programador automático. Solo los planes activos y elegibles de la
+        empresa generan órdenes. Cada plan puede tener a lo sumo una orden
+        abierta. El siguiente vencimiento avanza hasta después de la fecha
+        civil de Chile o de la lectura de horas actual.
+      responses:
+        "200":
+          description: Órdenes generadas en esta ejecución.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvaluacionPreventivosRespuesta" }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Preventivo:
+      description: Datos del plan y su orden preventiva abierta, si existe.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/PlanPreventivoRespuesta" }
+    DatosInvalidos:
+      description: DATOS_INVALIDOS. La configuración no corresponde al disparador o queda fuera de rango.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    NoAutorizado:
+      description: NO_AUTORIZADO. Se requiere una sesión válida.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string, const: Bearer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    SinPermiso:
+      description: SIN_PERMISO o PLAN_EMPRESA_REQUERIDO.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    NoEncontrado:
+      description: PREVENTIVO_NO_ENCONTRADO o ACTIVO_NO_ENCONTRADO. El recurso no existe en la empresa o el equipo fue dado de baja.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+    TecnicoNoDisponible:
+      description: TECNICO_NO_DISPONIBLE. Selecciona un técnico activo de tu empresa.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Id: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    Fecha: { type: string, format: date }
+    TipoDisparadorPreventivo:
+      type: string
+      enum: [FECHA, HORAS_USO]
+    IntervaloDias: { type: integer, minimum: 1, maximum: 36500 }
+    IntervaloHoras: { type: number, exclusiveMinimum: 0, maximum: 9007199254740991 }
+    Horas: { type: number, minimum: 0, maximum: 9007199254740991 }
+    Descripcion:
+      type: string
+      minLength: 1
+      maxLength: 2000
+      pattern: '\S'
+      not: { pattern: '\u0000' }
+    PlanPreventivoCrearSolicitud:
+      type: object
+      additionalProperties: false
+      required: [equipo_id, tecnico_id, descripcion, tipo_disparador]
+      properties:
+        equipo_id: { $ref: "#/components/schemas/Id" }
+        tecnico_id: { $ref: "#/components/schemas/Id" }
+        descripcion: { $ref: "#/components/schemas/Descripcion" }
+        tipo_disparador: { $ref: "#/components/schemas/TipoDisparadorPreventivo" }
+        intervalo_dias: { $ref: "#/components/schemas/IntervaloDias" }
+        intervalo_horas: { $ref: "#/components/schemas/IntervaloHoras" }
+        proxima_fecha: { $ref: "#/components/schemas/Fecha" }
+        proximas_horas: { $ref: "#/components/schemas/Horas" }
+      oneOf:
+        - properties: { tipo_disparador: { const: FECHA } }
+          required: [intervalo_dias, proxima_fecha]
+          not:
+            anyOf:
+              - required: [intervalo_horas]
+              - required: [proximas_horas]
+        - properties: { tipo_disparador: { const: HORAS_USO } }
+          required: [intervalo_horas, proximas_horas]
+          not:
+            anyOf:
+              - required: [intervalo_dias]
+              - required: [proxima_fecha]
+    PlanPreventivoActualizarSolicitud:
+      type: object
+      additionalProperties: false
+      required: [activo]
+      properties:
+        activo: { type: boolean }
+    PlanPreventivoRespuesta:
+      type: object
+      additionalProperties: false
+      required: [id, equipo_id, equipo_codigo, equipo_nombre, tecnico_id, descripcion, tipo_disparador, intervalo_dias, intervalo_horas, proxima_fecha, proximas_horas, activo, orden_abierta_id, alerta_vencimiento]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        equipo_id: { $ref: "#/components/schemas/Id" }
+        equipo_codigo: { type: string, pattern: '^EQ-[0-9]{4}$' }
+        equipo_nombre: { type: string }
+        tecnico_id: { $ref: "#/components/schemas/Id" }
+        descripcion: { $ref: "#/components/schemas/Descripcion" }
+        tipo_disparador: { $ref: "#/components/schemas/TipoDisparadorPreventivo" }
+        intervalo_dias:
+          oneOf:
+            - { $ref: "#/components/schemas/IntervaloDias" }
+            - { type: "null" }
+        intervalo_horas:
+          oneOf:
+            - { $ref: "#/components/schemas/IntervaloHoras" }
+            - { type: "null" }
+        proxima_fecha: { type: [string, "null"], format: date }
+        proximas_horas:
+          oneOf:
+            - { $ref: "#/components/schemas/Horas" }
+            - { type: "null" }
+        activo: { type: boolean }
+        orden_abierta_id:
+          oneOf:
+            - { $ref: "#/components/schemas/Id" }
+            - { type: "null" }
+        alerta_vencimiento: { type: boolean }
+    EvaluacionPreventivosRespuesta:
+      type: object
+      additionalProperties: false
+      required: [generadas, ordenes_ids]
+      properties:
+        generadas: { type: integer, minimum: 0 }
+        ordenes_ids: { type: array, uniqueItems: true, items: { $ref: "#/components/schemas/Id" } }
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          enum: [DATOS_INVALIDOS, NO_AUTORIZADO, SIN_PERMISO, PLAN_EMPRESA_REQUERIDO, ACTIVO_NO_ENCONTRADO, PREVENTIVO_NO_ENCONTRADO, TECNICO_NO_DISPONIBLE]
+        mensaje: { type: string, minLength: 1 }

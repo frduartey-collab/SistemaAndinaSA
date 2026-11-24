@@ -190,6 +190,7 @@ components:
         nombre: { $ref: "#/components/schemas/NombreRepuesto" }
         descripcion: { $ref: "#/components/schemas/DescripcionRepuesto" }
         stock_minimo: { $ref: "#/components/schemas/Unidades" }
+        costo_unitario_clp: { type: [integer, "null"], minimum: 0, maximum: 1000000000 }
     RepuestoActualizarSolicitud:
       type: object
       additionalProperties: false
@@ -198,6 +199,7 @@ components:
         nombre: { $ref: "#/components/schemas/NombreRepuesto" }
         descripcion: { $ref: "#/components/schemas/DescripcionRepuesto" }
         stock_minimo: { $ref: "#/components/schemas/Unidades" }
+        costo_unitario_clp: { type: [integer, "null"], minimum: 0, maximum: 1000000000 }
     TipoMovimientoRepuesto:
       type: string
       enum: [ENTRADA, SALIDA]
@@ -223,6 +225,7 @@ components:
             - { type: "null" }
         stock_actual: { $ref: "#/components/schemas/Unidades" }
         stock_minimo: { $ref: "#/components/schemas/Unidades" }
+        costo_unitario_clp: { type: [integer, "null"], minimum: 0, maximum: 1000000000 }
     PaginaRepuestos:
       type: object
       additionalProperties: false

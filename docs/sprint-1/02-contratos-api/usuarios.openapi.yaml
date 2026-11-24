@@ -1,0 +1,77 @@
+openapi: 3.1.0
+info:
+  title: SIGEM · Asignación de usuarios por sede
+  version: 1.0.0
+security:
+  - bearerAuth: []
+paths:
+  /usuarios:
+    get:
+      operationId: listarUsuariosSede
+      summary: Listar las cuentas de la organización para asignar sedes
+      description: Solo Jefatura de una organización Empresa.
+      responses:
+        "200":
+          description: Cuentas de la organización y sede asignada, si existe.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/UsuarioSede" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /usuarios/{id}/sede:
+    patch:
+      operationId: asignarSedeUsuario
+      summary: Asignar o quitar una sede de la organización
+      description: Solo Jefatura de Empresa. La sede restringe el acceso del usuario a los equipos y órdenes de esa sede. Jefatura conserva visibilidad global.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UsuarioSedeSolicitud" }
+      responses:
+        "200":
+          description: Asignación guardada.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UsuarioSede" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  responses:
+    Error:
+      description: Solicitud inválida, acceso restringido o recurso no disponible.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Id: { type: integer, minimum: 1, maximum: 9007199254740991 }
+    SedeId: { anyOf: [{ $ref: "#/components/schemas/Id" }, { type: "null" }] }
+    UsuarioSedeSolicitud:
+      type: object
+      additionalProperties: false
+      required: [sede_id]
+      properties:
+        sede_id: { $ref: "#/components/schemas/SedeId" }
+    UsuarioSede:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, rol, sede_id]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        nombre: { type: string }
+        rol: { type: string, enum: [TECNICO, SUPERVISOR, TRABAJADOR, BODEGA, JEFATURA] }
+        sede_id: { $ref: "#/components/schemas/SedeId" }
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo: { type: string }
+        mensaje: { type: string }

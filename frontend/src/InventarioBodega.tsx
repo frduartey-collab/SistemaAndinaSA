@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext'
 import { DialogoInventario, type AccionInventario } from './DialogoInventario'
 import { Icono } from './Icono'
 import { mensajeError } from './api'
+import { PESOS } from './planes'
 
 const TAMANO = 20
 
@@ -123,6 +124,7 @@ export function InventarioBodega() {
                     <th scope="col">Repuesto</th>
                     <th scope="col">Stock actual</th>
                     <th scope="col">Stock mínimo</th>
+                    <th scope="col">Costo unitario (CLP)</th>
                     <th scope="col">Acciones</th>
                   </tr>
                 </thead>
@@ -140,6 +142,7 @@ export function InventarioBodega() {
                           <span className="insignia criticidad-alta"><Icono nombre="falla" />Stock bajo</span>}
                       </td>
                       <td className="horas">{repuesto.stock_minimo}</td>
+                      <td className="horas">{repuesto.costo_unitario_clp == null ? 'Sin costo registrado' : PESOS.format(repuesto.costo_unitario_clp)}</td>
                       <td>
                         <div className="acciones-repuesto">
                           <button className="boton-texto" type="button" aria-label={'Editar ' + repuesto.codigo}

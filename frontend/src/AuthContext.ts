@@ -23,6 +23,7 @@ type DatosAuth = {
   iniciarSesion: (datos: LoginSolicitud) => Promise<void>
   cerrarSesion: () => Promise<void>
   reintentar: () => void
+  actualizarUsuario: () => Promise<void>
   solicitar: <T>(ruta: RutaApi, opciones?: OpcionesApi) => Promise<T>
 }
 

@@ -34,7 +34,9 @@ type PropsFormulario = {
 }
 
 export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGuardar }: PropsFormulario) {
-  const { solicitar, puedeEscribir, plan } = useAuth()
+  const { solicitar, puedeEscribir, plan, estado } = useAuth()
+  const sedeFija = plan === 'EMPRESA' && estado.tipo === 'activa' && estado.usuario.rol === 'SUPERVISOR'
+    ? estado.usuario.sede_id : undefined
   const [campos, setCampos] = useState<Campos>(() => ({
     codigo: equipo?.codigo ?? '',
     nombre: equipo?.nombre ?? '',
@@ -71,7 +73,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
     const marca = campos.marca.trim() || null
     const modelo = campos.modelo.trim() || null
     const horas = Number(campos.horas)
-    const sedeId = plan === 'EMPRESA' && campos.sede ? Number(campos.sede) : null
+    const sedeId = sedeFija ?? (plan === 'EMPRESA' && campos.sede ? Number(campos.sede) : null)
     const encontrados: Errores = {}
 
     if (!equipo && !/^EQ-[0-9]{4}$/.test(codigo)) encontrados.codigo = 'Usa EQ- seguido de cuatro números, por ejemplo, EQ-0042.'
@@ -104,7 +106,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
         if (marca !== (equipo.marca?.trim() || null)) cambios.marca = marca
         if (modelo !== (equipo.modelo?.trim() || null)) cambios.modelo = modelo
         if (horas !== equipo.uso_acumulado_horas) cambios.uso_acumulado_horas = horas
-        if (plan === 'EMPRESA' && sedeId !== (equipo.sede_id ?? null)) cambios.sede_id = sedeId
+        if (plan === 'EMPRESA' && sedeFija === undefined && sedeId !== (equipo.sede_id ?? null)) cambios.sede_id = sedeId
 
         if (Object.keys(cambios).length > 0) {
           await solicitar<ActivoRespuesta>(`/activos/${equipo.id}`, {
@@ -218,7 +220,8 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
               <label htmlFor="equipo-estado">Estado</label>
               <input id="equipo-estado" readOnly value={etiquetasEstado[equipo?.estado ?? 'OPERATIVO']} />
             </div>
-            {plan === 'EMPRESA' && <SelectorSede valor={campos.sede} alCambiar={(valor) => cambiar('sede', valor)} />}
+            {plan === 'EMPRESA' && <SelectorSede valor={sedeFija === undefined ? campos.sede : String(sedeFija)}
+              fija={sedeFija !== undefined} alCambiar={(valor) => cambiar('sede', valor)} />}
           </div>
         </fieldset>
         <div className="dialogo-acciones">

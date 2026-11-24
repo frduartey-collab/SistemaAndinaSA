@@ -1,6 +1,6 @@
 import type { Datos } from './datos.js';
 import type {
-  ConsultaOrdenes, ConsultaTecnicos, IntervencionRespuesta, OrdenCierreSolicitud,
+  ConsultaOrdenes, ConsultaTecnicos, CriticidadEquipo, IntervencionRespuesta, OrdenCierreSolicitud,
   OrdenCrearSolicitud, OrdenDetalleRespuesta, OrdenEstadoSolicitud, OrdenRespuesta,
   PaginaOrdenes, PaginaTecnicos, RepuestoConsumidoRespuesta, RepuestoConsumoSolicitud, TecnicoResumen,
 } from './dominio.js';
@@ -8,6 +8,21 @@ import { ErrorAPI } from './errores.js';
 import type { InventarioRepuestos } from './repuestos.js';
 
 type FilaIntervencion = Omit<IntervencionRespuesta, 'repuestos_consumidos'>;
+type FilaOrden = Omit<OrdenRespuesta, 'plan_preventivo_id'> & { plan_preventivo_id: number | null };
+
+interface NuevaOrdenPreventiva {
+  planId: number;
+  equipoId: number;
+  tecnicoId: number;
+  ciclo: number;
+  fechaLimite: string;
+  descripcion: string;
+  prioridad: CriticidadEquipo;
+}
+
+function ordenRespuesta({ plan_preventivo_id, ...orden }: FilaOrden): OrdenRespuesta {
+  return plan_preventivo_id === null ? orden : { ...orden, plan_preventivo_id };
+}
 
 function mismoConsumo(guardado: RepuestoConsumidoRespuesta[], solicitado: RepuestoConsumoSolicitud[]): boolean {
   return guardado.length === solicitado.length && guardado.every((repuesto, posicion) =>
@@ -16,18 +31,23 @@ function mismoConsumo(guardado: RepuestoConsumidoRespuesta[], solicitado: Repues
 }
 
 const SELECCION = `
-  SELECT o.id, o.falla_id, o.tecnico_id, u.nombre AS tecnico_nombre,
-         a.codigo AS equipo_codigo, a.nombre AS equipo_nombre, f.descripcion,
-         f.prioridad, o.fecha_limite, o.estado
+  SELECT o.id, o.falla_id, o.plan_preventivo_id, o.tecnico_id, u.nombre AS tecnico_nombre,
+         a.codigo AS equipo_codigo, a.nombre AS equipo_nombre,
+         COALESCE(f.descripcion, o.descripcion_preventiva) AS descripcion,
+         COALESCE(f.prioridad, o.prioridad_preventiva) AS prioridad, o.fecha_limite, o.estado
   FROM ordenes_trabajo o
-  JOIN fallas f ON f.id = o.falla_id AND f.tenant_id = o.tenant_id
-  JOIN activos a ON a.id = f.equipo_id AND a.tenant_id = f.tenant_id
+  LEFT JOIN fallas f ON f.id = o.falla_id AND f.tenant_id = o.tenant_id
+  JOIN activos a ON a.id = COALESCE(o.equipo_id, f.equipo_id) AND a.tenant_id = o.tenant_id
   JOIN usuarios u ON u.id = o.tecnico_id AND u.tenant_id = o.tenant_id
 `;
 
 const FORMATO_CHILE = new Intl.DateTimeFormat('sv-SE', {
   timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit',
 });
+
+export function fechaCivilChile(ahora: number): string {
+  return FORMATO_CHILE.format(ahora);
+}
 
 export class OrdenesTrabajo {
   constructor(private readonly datos: Datos, private readonly inventario: InventarioRepuestos) {
@@ -102,7 +122,7 @@ export class OrdenesTrabajo {
   }
 
   crear(input: OrdenCrearSolicitud, actorId: number, ahora: number): OrdenRespuesta {
-    if (input.fecha_limite < FORMATO_CHILE.format(ahora)) {
+    if (input.fecha_limite < fechaCivilChile(ahora)) {
       throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'La fecha límite debe ser hoy o una fecha posterior.');
     }
 
@@ -111,10 +131,11 @@ export class OrdenesTrabajo {
         "SELECT equipo_id FROM fallas WHERE tenant_id = ? AND id = ? AND estado = 'REPORTADA'",
       ).get(this.datos.tenantId, input.falla_id);
       if (!falla) throw new ErrorAPI(404, 'FALLA_NO_ENCONTRADA', 'La falla reportada no existe.');
-      this.datos.obtener(falla.equipo_id);
+      const equipo = this.datos.obtener(falla.equipo_id);
 
       const tecnico = this.datos.usuarioPorId(input.tecnico_id);
-      if (!tecnico?.activo || tecnico.rol !== 'TECNICO') {
+      if (!tecnico?.activo || tecnico.rol !== 'TECNICO'
+          || (tecnico.sede_id !== undefined && tecnico.sede_id !== equipo.sede_id)) {
         throw new ErrorAPI(409, 'TECNICO_NO_DISPONIBLE', 'Selecciona un técnico activo.');
       }
 
@@ -131,29 +152,52 @@ export class OrdenesTrabajo {
     });
   }
 
+  crearPreventivaEnTransaccion(input: NuevaOrdenPreventiva, actorId: number | null, ahora: number): number {
+    if (!this.datos.db.inTransaction) throw new Error('La orden preventiva debe generarse dentro de la evaluación.');
+    const equipo = this.datos.obtener(input.equipoId);
+    const tecnico = this.datos.usuarioPorId(input.tecnicoId);
+    if (!tecnico?.activo || tecnico.rol !== 'TECNICO'
+        || (tecnico.sede_id !== undefined && tecnico.sede_id !== equipo.sede_id)) {
+      throw new ErrorAPI(409, 'TECNICO_NO_DISPONIBLE', 'Selecciona un técnico activo disponible para la sede del equipo.');
+    }
+    const insercion = this.datos.db.prepare(`
+      INSERT INTO ordenes_trabajo(
+        tenant_id, plan_preventivo_id, equipo_id, tecnico_id, ciclo_preventivo, fecha_limite,
+        descripcion_preventiva, prioridad_preventiva
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(this.datos.tenantId, input.planId, input.equipoId, input.tecnicoId, input.ciclo,
+      input.fechaLimite, input.descripcion, input.prioridad);
+    const id = Number(insercion.lastInsertRowid);
+    this.datos.auditar(actorId, 'ORDEN_CREADA', id, ahora);
+    return id;
+  }
+
   listar(consulta: ConsultaOrdenes, tecnicoId?: number): PaginaOrdenes {
     const condiciones = ['o.tenant_id = ?'];
     const parametros = [this.datos.tenantId];
+    if (this.datos.sedeId !== null) { condiciones.push('a.sede_id = ?'); parametros.push(this.datos.sedeId); }
     if (tecnicoId !== undefined) { condiciones.push('o.tecnico_id = ?'); parametros.push(tecnicoId); }
     if (consulta.solo_abiertas) condiciones.push("o.estado IN ('PENDIENTE', 'EN_PROGRESO')");
     const where = condiciones.length ? ' WHERE ' + condiciones.join(' AND ') : '';
     const offset = (consulta.page - 1) * consulta.size;
     return this.datos.db.transaction(() => {
-      const items = this.datos.db.prepare<number[], OrdenRespuesta>(
+      const items = this.datos.db.prepare<number[], FilaOrden>(
         SELECCION + where + ' ORDER BY o.id DESC LIMIT ? OFFSET ?',
       ).all(...parametros, consulta.size, offset);
       const { total } = this.datos.db.prepare<number[], { total: number }>(
-        'SELECT count(*) AS total FROM ordenes_trabajo o' + where,
+        'SELECT count(*) AS total FROM (' + SELECCION + where + ')',
       ).get(...parametros)!;
-      return { items, total, page: consulta.page, size: consulta.size };
+      return { items: items.map(ordenRespuesta), total, page: consulta.page, size: consulta.size };
     })();
   }
 
   listarTecnicos(consulta: ConsultaTecnicos): PaginaTecnicos {
     const busqueda = consulta.q?.trim();
     const filtro = " WHERE tenant_id = ? AND rol = 'TECNICO' AND activo = 1"
+      + (this.datos.sedeId === null ? '' : ' AND (sede_id IS NULL OR sede_id = ?)')
       + (busqueda ? ' AND instr(lower(nombre), lower(?)) > 0' : '');
     const parametros: Array<string | number> = [this.datos.tenantId];
+    if (this.datos.sedeId !== null) parametros.push(this.datos.sedeId);
     if (busqueda) parametros.push(busqueda);
     const offset = (consulta.page - 1) * consulta.size;
     return this.datos.db.transaction(() => {
@@ -257,11 +301,13 @@ export class OrdenesTrabajo {
   }
 
   private obtener(id: number, tecnicoId?: number): OrdenRespuesta {
-    const filtro = ' WHERE o.tenant_id = ? AND o.id = ?' + (tecnicoId === undefined ? '' : ' AND o.tecnico_id = ?');
+    const filtro = ' WHERE o.tenant_id = ? AND o.id = ?' + (tecnicoId === undefined ? '' : ' AND o.tecnico_id = ?')
+      + (this.datos.sedeId === null ? '' : ' AND a.sede_id = ?');
     const parametros = [this.datos.tenantId, id];
     if (tecnicoId !== undefined) parametros.push(tecnicoId);
-    const orden = this.datos.db.prepare<number[], OrdenRespuesta>(SELECCION + filtro).get(...parametros);
+    if (this.datos.sedeId !== null) parametros.push(this.datos.sedeId);
+    const orden = this.datos.db.prepare<number[], FilaOrden>(SELECCION + filtro).get(...parametros);
     if (!orden) throw new ErrorAPI(404, 'ORDEN_NO_ENCONTRADA', 'No se encontró la orden de trabajo.');
-    return orden;
+    return ordenRespuesta(orden);
   }
 }

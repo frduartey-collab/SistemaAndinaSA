@@ -74,7 +74,8 @@ function FormularioRepuesto({ repuesto, alCerrar, alGuardar }: PropsFormulario) 
   const [nombre, setNombre] = useState(repuesto?.nombre ?? '')
   const [descripcion, setDescripcion] = useState(repuesto?.descripcion ?? '')
   const [minimo, setMinimo] = useState(String(repuesto?.stock_minimo ?? 0))
-  const [invalidos, setInvalidos] = useState<{ codigo?: string; nombre?: string; minimo?: string }>({})
+  const [costo, setCosto] = useState(String(repuesto?.costo_unitario_clp ?? ''))
+  const [invalidos, setInvalidos] = useState<{ codigo?: string; nombre?: string; minimo?: string; costo?: string }>({})
   const { guardar, guardando, error } = useGuardado(alGuardar)
 
   function enviar(evento: FormEvent<HTMLFormElement>) {
@@ -84,6 +85,8 @@ function FormularioRepuesto({ repuesto, alCerrar, alGuardar }: PropsFormulario) 
     const nombreIngresado = nombre.trim()
     const descripcionIngresada = descripcion.trim()
     const stockMinimo = Number(minimo)
+    const costoIngresado = costo.trim()
+    const costoUnitario = costoIngresado ? Number(costoIngresado) : null
     const errores: typeof invalidos = {}
     if (!repuesto && !/^[A-Za-z0-9._-]{1,60}$/.test(codigoIngresado)) {
       errores.codigo = 'Usa letras, números, puntos, guiones o guiones bajos.'
@@ -91,6 +94,9 @@ function FormularioRepuesto({ repuesto, alCerrar, alGuardar }: PropsFormulario) 
     if (!nombreIngresado) errores.nombre = 'Ingresa el nombre del repuesto.'
     if (!minimo.trim() || !Number.isSafeInteger(stockMinimo) || stockMinimo < 0) {
       errores.minimo = 'Ingresa un número entero igual o mayor que cero.'
+    }
+    if (costoUnitario !== null && (!/^[0-9]+$/.test(costoIngresado) || costoUnitario > 1_000_000_000)) {
+      errores.costo = 'Ingresa un monto entero entre 0 y 1.000.000.000 CLP.'
     }
     setInvalidos(errores)
     const campo = Object.keys(errores)[0]
@@ -102,6 +108,7 @@ function FormularioRepuesto({ repuesto, alCerrar, alGuardar }: PropsFormulario) 
     const datos: RepuestoActualizarSolicitud = {
       nombre: nombreIngresado,
       stock_minimo: stockMinimo,
+      costo_unitario_clp: costoUnitario,
       ...(descripcionIngresada ? { descripcion: descripcionIngresada } : {}),
     }
     void guardar(async () => {
@@ -150,6 +157,15 @@ function FormularioRepuesto({ repuesto, alCerrar, alGuardar }: PropsFormulario) 
             {invalidos.minimo
               ? <p className="error-campo" role="alert" id={campos + '-minimo-error'}>{invalidos.minimo}</p>
               : <p className="ayuda" id={campos + '-minimo-ayuda'}>Por debajo de este valor se indica stock bajo.</p>}
+          </div>
+          <div className="campo">
+            <label htmlFor={campos + '-costo'}>Costo unitario (CLP, opcional)</label>
+            <input id={campos + '-costo'} value={costo} inputMode="numeric" maxLength={10}
+              onChange={(evento) => setCosto(evento.target.value)} aria-invalid={Boolean(invalidos.costo)}
+              aria-describedby={invalidos.costo ? campos + '-costo-error' : campos + '-costo-ayuda'} />
+            {invalidos.costo
+              ? <p className="error-campo" role="alert" id={campos + '-costo-error'}>{invalidos.costo}</p>
+              : <p className="ayuda" id={campos + '-costo-ayuda'}>Déjalo vacío si el costo es desconocido.</p>}
           </div>
         </fieldset>
         <div className="dialogo-acciones">

@@ -1,12 +1,17 @@
 import type { Datos } from './datos.js';
 import type {
-  ConsultaRepuestos, MovimientoRepuestoSolicitud, PaginaRepuestos,
+  ConsultaRepuestos, CostoERP, MovimientoRepuestoSolicitud, PaginaCostosERP, PaginaRepuestos,
   RepuestoActualizarSolicitud, RepuestoConsumidoRespuesta, RepuestoConsumoSolicitud,
-  RepuestoCrearSolicitud, RepuestoRespuesta,
+  RepuestoCrearSolicitud, RepuestoRespuesta, StockERP,
 } from './dominio.js';
 import { ErrorAPI } from './errores.js';
 
-const CAMPOS_REPUESTO = 'id, codigo, nombre, descripcion, stock_actual, stock_minimo';
+const CAMPOS_REPUESTO = 'id, codigo, nombre, descripcion, stock_actual, stock_minimo, costo_unitario_clp';
+type FilaRepuesto = Omit<RepuestoRespuesta, 'costo_unitario_clp'> & { costo_unitario_clp: number | null };
+
+function responder({ costo_unitario_clp, ...repuesto }: FilaRepuesto): RepuestoRespuesta {
+  return costo_unitario_clp === null ? repuesto : { ...repuesto, costo_unitario_clp };
+}
 
 export class InventarioRepuestos {
   constructor(private readonly datos: Datos) {
@@ -47,22 +52,22 @@ export class InventarioRepuestos {
     const offset = (consulta.page - 1) * consulta.size;
 
     return this.datos.db.transaction(() => {
-      const items = this.datos.db.prepare<Array<string | number>, RepuestoRespuesta>(
+      const items = this.datos.db.prepare<Array<string | number>, FilaRepuesto>(
         'SELECT ' + CAMPOS_REPUESTO + ' FROM repuestos' + filtro + ' ORDER BY codigo LIMIT ? OFFSET ?',
       ).all(...parametros, consulta.size, offset);
       const { total } = this.datos.db.prepare<Array<string | number>, { total: number }>(
         'SELECT count(*) AS total FROM repuestos' + filtro,
       ).get(...parametros)!;
-      return { items, total, page: consulta.page, size: consulta.size };
+      return { items: items.map(responder), total, page: consulta.page, size: consulta.size };
     })();
   }
 
   obtener(id: number): RepuestoRespuesta {
-    const repuesto = this.datos.db.prepare<[number, number], RepuestoRespuesta>(
+    const repuesto = this.datos.db.prepare<[number, number], FilaRepuesto>(
       'SELECT ' + CAMPOS_REPUESTO + ' FROM repuestos WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL',
     ).get(this.datos.tenantId, id);
     if (!repuesto) throw new ErrorAPI(404, 'REPUESTO_NO_ENCONTRADO', 'No se encontró el repuesto vigente.');
-    return repuesto;
+    return responder(repuesto);
   }
 
   crear(input: RepuestoCrearSolicitud, actorId: number, ahora: number): RepuestoRespuesta {
@@ -73,8 +78,8 @@ export class InventarioRepuestos {
         throw new ErrorAPI(409, 'CODIGO_DUPLICADO', 'El código del repuesto ya está reservado.');
       }
       const insercion = this.datos.db.prepare(
-        'INSERT INTO repuestos(tenant_id, codigo, nombre, descripcion, stock_minimo) VALUES (?, ?, ?, ?, ?)',
-      ).run(this.datos.tenantId, codigo, input.nombre.trim(), input.descripcion?.trim() || null, input.stock_minimo);
+        'INSERT INTO repuestos(tenant_id, codigo, nombre, descripcion, stock_minimo, costo_unitario_clp) VALUES (?, ?, ?, ?, ?, ?)',
+      ).run(this.datos.tenantId, codigo, input.nombre.trim(), input.descripcion?.trim() || null, input.stock_minimo, input.costo_unitario_clp ?? null);
       const id = Number(insercion.lastInsertRowid);
       this.datos.auditar(actorId, 'REPUESTO_CREADO', id, ahora);
       return this.obtener(id);
@@ -83,9 +88,12 @@ export class InventarioRepuestos {
 
   actualizar(id: number, input: RepuestoActualizarSolicitud, actorId: number, ahora: number): RepuestoRespuesta {
     return this.datos.transaccion(() => {
-      const actualizacion = this.datos.db.prepare(
-        'UPDATE repuestos SET nombre = ?, descripcion = ?, stock_minimo = ? WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL',
-      ).run(input.nombre.trim(), input.descripcion?.trim() || null, input.stock_minimo, this.datos.tenantId, id);
+      const actualizacion = this.datos.db.prepare(`
+        UPDATE repuestos SET nombre = ?, descripcion = ?, stock_minimo = ?,
+          costo_unitario_clp = CASE WHEN ? THEN ? ELSE costo_unitario_clp END
+        WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL
+      `).run(input.nombre.trim(), input.descripcion?.trim() || null, input.stock_minimo,
+        Number(input.costo_unitario_clp !== undefined), input.costo_unitario_clp ?? null, this.datos.tenantId, id);
       if (actualizacion.changes === 0) throw new ErrorAPI(404, 'REPUESTO_NO_ENCONTRADO', 'No se encontró el repuesto vigente.');
       this.datos.auditar(actorId, 'REPUESTO_MODIFICADO', id, ahora);
       return this.obtener(id);
@@ -105,7 +113,40 @@ export class InventarioRepuestos {
   }
 
   mover(id: number, input: MovimientoRepuestoSolicitud, actorId: number, ahora: number): RepuestoRespuesta {
-    return this.datos.transaccion(() => this.aplicarMovimiento(id, input, actorId, ahora, null));
+    return this.datos.transaccion(() => this.aplicarMovimiento(this.obtener(id), input, actorId, ahora, null));
+  }
+
+  exportarCostosERP(page: number, size: number): PaginaCostosERP {
+    return this.datos.db.transaction(() => {
+      const tenantId = this.datos.tenantId;
+      const items = this.datos.db.prepare<[number, number, number], CostoERP>(`
+        SELECT codigo, nombre, stock_actual, costo_unitario_clp
+        FROM repuestos WHERE tenant_id = ? AND deleted_at IS NULL
+        ORDER BY codigo LIMIT ? OFFSET ?
+      `).all(tenantId, size, (page - 1) * size);
+      const { total } = this.datos.db.prepare<[number], { total: number }>(
+        'SELECT count(*) AS total FROM repuestos WHERE tenant_id = ? AND deleted_at IS NULL',
+      ).get(tenantId)!;
+      return { items, total, page, size };
+    })();
+  }
+
+  ajustarStockERPEnTransaccion(item: StockERP, referencia: string, actorId: number, ahora: number): boolean {
+    if (!this.datos.db.inTransaction) throw new Error('La sincronización ERP requiere una transacción.');
+    const repuesto = this.datos.db.prepare<[number, string], FilaRepuesto>(
+      'SELECT ' + CAMPOS_REPUESTO + ' FROM repuestos WHERE tenant_id = ? AND codigo = ? AND deleted_at IS NULL',
+    ).get(this.datos.tenantId, item.codigo);
+    if (!repuesto) {
+      throw new ErrorAPI(404, 'REPUESTO_NO_ENCONTRADO', 'No se encontró el repuesto vigente ' + item.codigo + '.');
+    }
+    const diferencia = item.stock_actual - repuesto.stock_actual;
+    if (diferencia === 0) return false;
+    this.aplicarMovimiento(responder(repuesto), {
+      tipo: diferencia > 0 ? 'ENTRADA' : 'SALIDA',
+      cantidad: Math.abs(diferencia),
+      motivo: 'Sincronización ERP: ' + referencia,
+    }, actorId, ahora, null);
+    return true;
   }
 
   consumirEnTransaccion(
@@ -117,16 +158,16 @@ export class InventarioRepuestos {
       throw new ErrorAPI(404, 'ORDEN_NO_ENCONTRADA', 'No se encontró la orden de trabajo.');
     }
     const { codigo, nombre } = this.aplicarMovimiento(
-      consumo.repuesto_id, { tipo: 'SALIDA', cantidad: consumo.cantidad, motivo: 'Consumo por intervención' },
+      this.obtener(consumo.repuesto_id), { tipo: 'SALIDA', cantidad: consumo.cantidad, motivo: 'Consumo por intervención' },
       actorId, ahora, ordenId,
     );
     return { ...consumo, codigo, nombre };
   }
 
   private aplicarMovimiento(
-    id: number, input: MovimientoRepuestoSolicitud, actorId: number, ahora: number, ordenId: number | null,
+    repuesto: RepuestoRespuesta, input: MovimientoRepuestoSolicitud, actorId: number, ahora: number, ordenId: number | null,
   ): RepuestoRespuesta {
-    const repuesto = this.obtener(id);
+    const { id } = repuesto;
     const variacion = input.tipo === 'ENTRADA' ? input.cantidad : -input.cantidad;
     const stock = repuesto.stock_actual + variacion;
     if (stock < 0) {

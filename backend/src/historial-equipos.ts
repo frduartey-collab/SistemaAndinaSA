@@ -20,8 +20,9 @@ type FilaConsumo = RepuestoConsumidoRespuesta & { orden_id: number };
 
 const SELECCION_HISTORIAL = `
   WITH fallas_equipo AS (
-    SELECT id, tenant_id, descripcion, prioridad, fecha_reporte
-    FROM fallas WHERE tenant_id = ? AND equipo_id = ?
+    SELECT f.id, f.tenant_id, f.descripcion, f.prioridad, f.fecha_reporte
+    FROM fallas f JOIN activos a ON a.id=f.equipo_id AND a.tenant_id=f.tenant_id
+    WHERE f.tenant_id = ? AND f.equipo_id = ? AND (? IS NULL OR a.sede_id = ?)
   ),
   eventos_orden AS (
     SELECT o.id AS orden_id, o.tenant_id,
@@ -64,12 +65,13 @@ export class HistorialEquipos {
     const offset = (consulta.page - 1) * consulta.size;
     return this.datos.db.transaction(() => {
       this.datos.obtener(equipoId);
-      const { total } = this.datos.db.prepare<[number, number], { total: number }>(
-        'SELECT count(*) AS total FROM fallas WHERE tenant_id = ? AND equipo_id = ?',
-      ).get(this.datos.tenantId, equipoId)!;
-      const filas = this.datos.db.prepare<[number, number, number, number], FilaHistorial>(
+      const { total } = this.datos.db.prepare<[number, number, number | null, number | null], { total: number }>(`
+        SELECT count(*) AS total FROM fallas f JOIN activos a ON a.id=f.equipo_id AND a.tenant_id=f.tenant_id
+        WHERE f.tenant_id = ? AND f.equipo_id = ? AND (? IS NULL OR a.sede_id = ?)
+      `).get(this.datos.tenantId, equipoId, this.datos.sedeId, this.datos.sedeId)!;
+      const filas = this.datos.db.prepare<[number, number, number | null, number | null, number, number], FilaHistorial>(
         SELECCION_HISTORIAL,
-      ).all(this.datos.tenantId, equipoId, consulta.size, offset);
+      ).all(this.datos.tenantId, equipoId, this.datos.sedeId, this.datos.sedeId, consulta.size, offset);
       const ordenesIntervenidas = filas.flatMap(fila =>
         fila.intervencion_orden_id === null ? [] : [fila.intervencion_orden_id],
       );

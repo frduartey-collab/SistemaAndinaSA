@@ -92,18 +92,20 @@ function agregarTenant(db: Database.Database, tabla: string): void {
   }
 }
 
-function reconstruirCodigos(db: Database.Database, tabla: string, esquema: string, campos: string[]): void {
+function reconstruirTabla(
+  db: Database.Database, tabla: string, esquema: string, campos: string[], reemplazarCodigoGlobal = false,
+): void {
   const antiguas = columnas(db, tabla);
   const expresiones = campos.map(campo => {
     if (antiguas.has(campo)) return campo;
     return campo === 'tenant_id' ? String(TENANT_LEGADO_ID) : 'NULL';
   });
-  const indicesCodigo = db.prepare<[string], { name: string }>(
+  const indicesCodigo = reemplazarCodigoGlobal ? db.prepare<[string], { name: string }>(
     'SELECT name FROM pragma_index_list(?) WHERE "unique" = 1',
   ).all(tabla).filter(indice => {
     const nombres = db.prepare<[string], { name: string }>('SELECT name FROM pragma_index_info(?)').all(indice.name);
     return nombres.length === 1 && nombres[0].name === 'codigo';
-  }).map(indice => indice.name);
+  }).map(indice => indice.name) : [];
   const adicionales = db.prepare<[string], { name: string; sql: string }>(`
     SELECT name, sql FROM sqlite_schema WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL
     ORDER BY type, name
@@ -150,10 +152,10 @@ function protegerTenant(db: Database.Database, tabla: string, relaciones: Relaci
 export function migrarTenantsBase(db: Database.Database): void {
   migrar(db, 2, () => {
     for (const tabla of ['usuarios', 'sesiones', 'auditoria']) agregarTenant(db, tabla);
-    reconstruirCodigos(db, 'activos', ACTIVOS, [
+    reconstruirTabla(db, 'activos', ACTIVOS, [
       'id', 'codigo', 'nombre', 'marca', 'modelo', 'ubicacion', 'criticidad', 'estado',
       'uso_acumulado_horas', 'fecha_alta', 'deleted_at', 'sede_id', 'tenant_id',
-    ]);
+    ], true);
     protegerTenant(db, 'usuarios');
     protegerTenant(db, 'sedes');
     protegerTenant(db, 'activos');
@@ -167,11 +169,35 @@ export function migrarTenantsBase(db: Database.Database): void {
   });
 }
 
+/** La sede del usuario es opcional; null conserva acceso al conjunto de su empresa. */
+export function migrarSedesUsuarios(db: Database.Database): void {
+  migrar(db, 5, () => {
+    if (!columnas(db, 'usuarios').has('sede_id')) {
+      db.exec('ALTER TABLE usuarios ADD COLUMN sede_id INTEGER REFERENCES sedes(id)');
+    }
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS usuario_sede_insertar
+      BEFORE INSERT ON usuarios
+      WHEN NEW.sede_id IS NOT NULL AND (NEW.rol = 'JEFATURA' OR NOT EXISTS (
+        SELECT 1 FROM sedes WHERE id = NEW.sede_id AND tenant_id = NEW.tenant_id
+      ))
+      BEGIN SELECT RAISE(ABORT, 'La sede del usuario debe pertenecer a su empresa y Jefatura es global.'); END;
+      CREATE TRIGGER IF NOT EXISTS usuario_sede_actualizar
+      BEFORE UPDATE OF sede_id, rol ON usuarios
+      WHEN NEW.sede_id IS NOT NULL AND (NEW.rol = 'JEFATURA' OR NOT EXISTS (
+        SELECT 1 FROM sedes WHERE id = NEW.sede_id AND tenant_id = NEW.tenant_id
+      ))
+      BEGIN SELECT RAISE(ABORT, 'La sede del usuario debe pertenecer a su empresa y Jefatura es global.'); END;
+      CREATE INDEX IF NOT EXISTS usuarios_por_tenant_sede ON usuarios(tenant_id, sede_id, rol, activo);
+    `);
+  });
+}
+
 export function migrarTenantsOperativos(db: Database.Database): void {
   migrar(db, 3, () => {
-    reconstruirCodigos(db, 'repuestos', REPUESTOS, [
+    reconstruirTabla(db, 'repuestos', REPUESTOS, [
       'id', 'codigo', 'nombre', 'descripcion', 'stock_actual', 'stock_minimo', 'deleted_at', 'tenant_id',
-    ]);
+    ], true);
     protegerTenant(db, 'repuestos');
     const relaciones: Record<string, RelacionTenant[]> = {
       fallas: [{ columna: 'equipo_id', tabla: 'activos' }, { columna: 'usuario_id', tabla: 'usuarios' }],
@@ -195,6 +221,67 @@ export function migrarTenantsOperativos(db: Database.Database): void {
     db.exec(`
       CREATE INDEX IF NOT EXISTS fallas_por_tenant_fecha ON fallas(tenant_id, fecha_reporte DESC, id DESC);
       CREATE INDEX IF NOT EXISTS ordenes_por_tenant ON ordenes_trabajo(tenant_id, id DESC);
+    `);
+  });
+}
+
+export function migrarPreventivos(db: Database.Database): void {
+  migrar(db, 4, () => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS planes_preventivos (
+        id INTEGER PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+        equipo_id INTEGER NOT NULL REFERENCES activos(id),
+        tecnico_id INTEGER NOT NULL REFERENCES usuarios(id),
+        descripcion TEXT NOT NULL CHECK(length(trim(descripcion)) BETWEEN 1 AND 2000),
+        tipo_disparador TEXT NOT NULL CHECK(tipo_disparador IN ('FECHA', 'HORAS_USO')),
+        intervalo_dias INTEGER CHECK(typeof(intervalo_dias) = 'integer' AND intervalo_dias BETWEEN 1 AND 36500 OR intervalo_dias IS NULL),
+        intervalo_horas REAL CHECK(intervalo_horas > 0 AND intervalo_horas <= 9007199254740991 OR intervalo_horas IS NULL),
+        proxima_fecha TEXT,
+        proximas_horas REAL CHECK(proximas_horas BETWEEN 0 AND 9007199254740991),
+        activo INTEGER NOT NULL DEFAULT 1 CHECK(activo IN (0, 1)),
+        proximo_ciclo INTEGER NOT NULL DEFAULT 1 CHECK(typeof(proximo_ciclo) = 'integer' AND proximo_ciclo BETWEEN 1 AND 9007199254740991),
+        UNIQUE (tenant_id, id, equipo_id),
+        CHECK(
+          (tipo_disparador = 'FECHA' AND intervalo_dias IS NOT NULL AND proxima_fecha IS NOT NULL
+            AND intervalo_horas IS NULL AND proximas_horas IS NULL)
+          OR (tipo_disparador = 'HORAS_USO' AND intervalo_horas IS NOT NULL AND proximas_horas IS NOT NULL
+            AND intervalo_dias IS NULL AND proxima_fecha IS NULL)
+        )
+      );
+      CREATE INDEX IF NOT EXISTS preventivos_por_tenant_tecnico ON planes_preventivos(tenant_id, tecnico_id, id DESC);
+    `);
+    protegerTenant(db, 'planes_preventivos', [
+      { columna: 'equipo_id', tabla: 'activos' },
+      { columna: 'tecnico_id', tabla: 'usuarios' },
+    ]);
+    reconstruirTabla(db, 'ordenes_trabajo', `
+      id INTEGER PRIMARY KEY,
+      falla_id INTEGER UNIQUE REFERENCES fallas(id),
+      tecnico_id INTEGER NOT NULL REFERENCES usuarios(id),
+      fecha_limite TEXT NOT NULL,
+      estado TEXT NOT NULL DEFAULT 'PENDIENTE' CHECK (estado IN ('PENDIENTE', 'EN_PROGRESO', 'CERRADA')),
+      tenant_id INTEGER NOT NULL DEFAULT ${TENANT_LEGADO_ID} REFERENCES tenants(id),
+      plan_preventivo_id INTEGER,
+      equipo_id INTEGER REFERENCES activos(id),
+      ciclo_preventivo INTEGER CHECK(typeof(ciclo_preventivo) = 'integer' AND ciclo_preventivo BETWEEN 1 AND 9007199254740991 OR ciclo_preventivo IS NULL),
+      descripcion_preventiva TEXT CHECK(length(trim(descripcion_preventiva)) BETWEEN 1 AND 2000),
+      prioridad_preventiva TEXT CHECK(prioridad_preventiva IN ('ALTA', 'MEDIA', 'BAJA')),
+      FOREIGN KEY (tenant_id, plan_preventivo_id, equipo_id) REFERENCES planes_preventivos(tenant_id, id, equipo_id),
+      UNIQUE (tenant_id, plan_preventivo_id, ciclo_preventivo),
+      CHECK(
+        (falla_id IS NOT NULL AND plan_preventivo_id IS NULL AND equipo_id IS NULL AND ciclo_preventivo IS NULL
+          AND descripcion_preventiva IS NULL AND prioridad_preventiva IS NULL)
+        OR (falla_id IS NULL AND plan_preventivo_id IS NOT NULL AND equipo_id IS NOT NULL AND ciclo_preventivo IS NOT NULL
+          AND descripcion_preventiva IS NOT NULL AND prioridad_preventiva IS NOT NULL)
+      )
+    `, ['id', 'falla_id', 'tecnico_id', 'fecha_limite', 'estado', 'tenant_id']);
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS preventivos_orden_abierta
+        ON ordenes_trabajo(tenant_id, plan_preventivo_id)
+        WHERE plan_preventivo_id IS NOT NULL AND estado IN ('PENDIENTE', 'EN_PROGRESO');
+      CREATE INDEX IF NOT EXISTS preventivos_ordenes_equipo
+        ON ordenes_trabajo(tenant_id, equipo_id, id DESC) WHERE plan_preventivo_id IS NOT NULL;
     `);
   });
 }

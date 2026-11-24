@@ -1,11 +1,12 @@
 import { Icono } from './Icono'
 import { MarcaSigem } from './MarcaSigem'
 import { useRef, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import type { RegistroSolicitud, Rol, UsuarioSesion } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
 import { etiquetasRol } from './activos'
 import { ErrorApi, llamarApi, mensajeError } from './api'
+import { PLANES, leerPlan, rutaConPlan } from './planes'
 import { normalizarRut, rutValido } from './rut'
 
 const ROLES_BASE = ['TECNICO', 'TRABAJADOR'] as const
@@ -19,6 +20,9 @@ function rolesDisponibles(rol?: Rol): readonly Rol[] {
 export function Registro() {
   const { estado, solicitar } = useAuth()
   const navigate = useNavigate()
+  const [parametros] = useSearchParams()
+  const planSolicitado = leerPlan(parametros)
+  const rutaLogin = rutaConPlan('/login', planSolicitado)
   const sesionActiva = estado.tipo === 'activa'
   const roles = rolesDisponibles(sesionActiva ? estado.usuario.rol : undefined)
   const [rut, setRut] = useState('')
@@ -81,7 +85,7 @@ export function Registro() {
         : await llamarApi<UsuarioSesion>('/auth/register', opciones)
 
       if (!sesionActiva) {
-        navigate('/login', { replace: true, state: { rutRegistrado: cuenta.rut } })
+        navigate(rutaLogin, { replace: true, state: { rutRegistrado: cuenta.rut } })
         return
       }
       setExito('Cuenta de ' + cuenta.nombre + ' creada. Ya puede ingresar con su RUT.')
@@ -111,6 +115,9 @@ export function Registro() {
       <section className="panel-login" aria-labelledby="titulo-registro">
         <h1 id="titulo-registro">Crear cuenta</h1>
         {!sesionActiva && <p className="ayuda registro-plan">Tu primera cuenta tendrá rol Jefatura en el Plan Particular.</p>}
+        {!sesionActiva && planSolicitado && (
+          <p className="ayuda registro-plan">Podrás continuar con el plan {PLANES[planSolicitado].nombre} al iniciar sesión.</p>
+        )}
         {error && <p className="aviso aviso-error" role="alert">{error}</p>}
         {exito && <p className="aviso aviso-exito" role="status">{exito}</p>}
         <form className="formulario-login" noValidate aria-busy={enviando} onSubmit={registrar}>
@@ -164,7 +171,7 @@ export function Registro() {
           </button>
         </form>
         <p className="enlace-cuenta">
-          <Link className="enlace-con-icono" to={sesionActiva ? '/equipos' : '/login'}>
+          <Link className="enlace-con-icono" to={sesionActiva ? '/equipos' : rutaLogin}>
             <Icono nombre="anterior" />
             {sesionActiva ? 'Volver a equipos' : 'Volver a iniciar sesión'}
           </Link>

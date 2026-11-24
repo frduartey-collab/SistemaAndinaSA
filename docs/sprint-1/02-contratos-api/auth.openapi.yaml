@@ -296,6 +296,10 @@ components:
           minimum: 1
         plan:
           $ref: "#/components/schemas/PlanTenant"
+        sede_id:
+          type: integer
+          minimum: 1
+          description: Sede asignada. Se omite si la cuenta tiene acceso de organización.
       examples:
         - id: 1
           rut: 12345678-5

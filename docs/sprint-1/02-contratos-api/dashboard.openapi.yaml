@@ -1,0 +1,102 @@
+openapi: 3.1.0
+info:
+  title: SIGEM · Dashboard gerencial
+  version: 1.0.0
+paths:
+  /dashboard/metricas:
+    get:
+      operationId: consultarMetricasGerenciales
+      summary: Consultar indicadores de mantenimiento del cliente
+      description: |
+        Supervisor y Jefatura. Incluye todo el historial. Vencida es una orden abierta
+        con fecha límite anterior al día de Chile. El MTTR promedia la duración registrada
+        de las reparaciones correctivas cerradas. Cumplimiento mide el porcentaje de
+        preventivas cerradas en fecha sobre las que ya vencieron o se han cerrado.
+      parameters:
+        - name: sede_id
+          in: query
+          description: Filtro para Empresa. Omítelo para obtener el consolidado dentro de tu alcance.
+          schema: { type: integer, minimum: 1, maximum: 9007199254740991 }
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Indicadores del cliente.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MetricasDashboard" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: Filtro inválido, sesión ausente, rol o plan sin acceso, o sede fuera de alcance.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorRespuesta" }
+  schemas:
+    Cantidad: { type: integer, minimum: 0 }
+    FallaRecurrente:
+      type: object
+      additionalProperties: false
+      required: [equipo_id, equipo_codigo, equipo_nombre, total]
+      properties:
+        equipo_id: { type: integer, minimum: 1 }
+        equipo_codigo: { type: string, pattern: '^EQ-[0-9]{4}$' }
+        equipo_nombre: { type: string }
+        total: { type: integer, minimum: 2 }
+    MetricasDashboard:
+      type: object
+      additionalProperties: false
+      required: [ordenes_abiertas, ordenes_vencidas, mttr_minutos, fallas_recurrentes, cumplimiento_preventivo_pct, preventivas_en_plazo, preventivas_evaluadas]
+      properties:
+        ordenes_abiertas: { $ref: "#/components/schemas/Cantidad" }
+        ordenes_vencidas: { $ref: "#/components/schemas/Cantidad" }
+        mttr_minutos: { type: [number, "null"], minimum: 0 }
+        fallas_recurrentes:
+          type: array
+          maxItems: 5
+          items: { $ref: "#/components/schemas/FallaRecurrente" }
+        cumplimiento_preventivo_pct: { type: [number, "null"], minimum: 0, maximum: 100 }
+        preventivas_en_plazo: { $ref: "#/components/schemas/Cantidad" }
+        preventivas_evaluadas: { $ref: "#/components/schemas/Cantidad" }
+        por_sede:
+          type: array
+          items: { $ref: "#/components/schemas/MetricasSede" }
+    MetricasSede:
+      type: object
+      additionalProperties: false
+      required: [sede_id, nombre, metricas]
+      properties:
+        sede_id: { type: [integer, "null"], minimum: 1 }
+        nombre: { type: string }
+        metricas: { $ref: "#/components/schemas/MetricasDashboardBase" }
+    MetricasDashboardBase:
+      type: object
+      additionalProperties: false
+      required: [ordenes_abiertas, ordenes_vencidas, mttr_minutos, fallas_recurrentes, cumplimiento_preventivo_pct, preventivas_en_plazo, preventivas_evaluadas]
+      properties:
+        ordenes_abiertas: { $ref: "#/components/schemas/Cantidad" }
+        ordenes_vencidas: { $ref: "#/components/schemas/Cantidad" }
+        mttr_minutos: { type: [number, "null"], minimum: 0 }
+        fallas_recurrentes:
+          type: array
+          maxItems: 5
+          items: { $ref: "#/components/schemas/FallaRecurrente" }
+        cumplimiento_preventivo_pct: { type: [number, "null"], minimum: 0, maximum: 100 }
+        preventivas_en_plazo: { $ref: "#/components/schemas/Cantidad" }
+        preventivas_evaluadas: { $ref: "#/components/schemas/Cantidad" }
+    ErrorRespuesta:
+      type: object
+      additionalProperties: false
+      required: [codigo, mensaje]
+      properties:
+        codigo: { type: string }
+        mensaje: { type: string }

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import type { SedeRespuesta, SedeSolicitud } from '../../backend/src/dominio'
+import { AsignacionSedes } from './AsignacionSedes'
 import { useAuth } from './AuthContext'
 import { Dialogo } from './Dialogo'
 import { Icono } from './Icono'
@@ -15,7 +16,10 @@ type Accion =
   | { tipo: 'editar' | 'baja'; sede: SedeRespuesta }
 
 export function GestionSedes() {
-  const { solicitar, puedeEscribir } = useAuth()
+  const { solicitar, puedeEscribir, estado, plan } = useAuth()
+  const usuario = estado.tipo === 'activa' ? estado.usuario : null
+  const sedeFija = usuario?.rol === 'SUPERVISOR' ? usuario.sede_id : undefined
+  const puedeGestionar = puedeEscribir && sedeFija === undefined
   const [vista, setVista] = useState<Vista>({ tipo: 'cargando' })
   const [revision, setRevision] = useState(0)
   const [accion, setAccion] = useState<Accion | null>(null)
@@ -28,7 +32,7 @@ export function GestionSedes() {
 
     solicitar<SedeRespuesta[]>('/sedes', { signal })
       .then((sedes) => {
-        if (!signal.aborted) setVista({ tipo: 'lista', sedes })
+        if (!signal.aborted) setVista({ tipo: 'lista', sedes: sedes.filter((sede) => sedeFija === undefined || sede.id === sedeFija) })
       })
       .catch((fallo: unknown) => {
         if (!signal.aborted) setVista({
@@ -37,7 +41,7 @@ export function GestionSedes() {
       })
 
     return () => controlador.abort()
-  }, [revision, solicitar])
+  }, [revision, solicitar, sedeFija])
 
   function refrescar() {
     setVista({ tipo: 'cargando' })
@@ -55,7 +59,7 @@ export function GestionSedes() {
     <>
       <div className="encabezado-pagina">
         <h1 ref={titulo} tabIndex={-1}>Sedes y Sucursales</h1>
-        {puedeEscribir && (
+        {puedeGestionar && (
           <button type="button" className="boton boton-primario" onClick={() => setAccion({ tipo: 'crear' })}>
             <Icono nombre="crear" />Nueva sede
           </button>
@@ -85,7 +89,7 @@ export function GestionSedes() {
                       <h2>{sede.nombre}</h2>
                       <p>{sede.direccion}</p>
                     </div>
-                    {puedeEscribir && (
+                    {puedeGestionar && (
                       <div className="acciones-reporte">
                         <button className="boton boton-secundario" type="button" aria-label={'Editar ' + sede.nombre}
                           onClick={() => setAccion({ tipo: 'editar', sede })}><Icono nombre="editar" />Editar</button>
@@ -100,7 +104,8 @@ export function GestionSedes() {
           )}
         </section>
       )}
-      {puedeEscribir && accion && (
+      {plan === 'EMPRESA' && usuario?.rol === 'JEFATURA' && vista.tipo === 'lista' && <AsignacionSedes sedes={vista.sedes} />}
+      {puedeGestionar && accion && (
         <DialogoSede accion={accion} alCerrar={() => setAccion(null)} alGuardar={operacionTerminada} />
       )}
     </>

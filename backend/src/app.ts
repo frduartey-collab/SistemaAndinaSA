@@ -1,11 +1,16 @@
 import express, { type Request, type Response, type NextFunction, type ErrorRequestHandler } from 'express';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import jwt from 'jsonwebtoken';
+import { Dashboard } from './dashboard.js';
 import { Datos } from './datos.js';
 import { Fallas } from './fallas.js';
 import { OrdenesTrabajo } from './ordenes.js';
 import { InventarioRepuestos } from './repuestos.js';
 import { Sedes } from './sedes.js';
+import { Suscripciones } from './suscripciones.js';
+import { IntegracionesERP } from './integraciones-erp.js';
+import { Preventivos } from './preventivos.js';
+import { migrarPreventivos } from './tenants.js';
 import { HistorialEquipos } from './historial-equipos.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
@@ -18,10 +23,11 @@ import type {
   LoginSolicitud, LoginRespuesta, RegistroSolicitud, UsuarioSesion, ErrorRespuesta,
   ActivoCrearSolicitud, ActivoActualizarSolicitud, FallaCrearSolicitud,
   OrdenCierreSolicitud, OrdenCrearSolicitud, OrdenEstadoSolicitud, Rol,
-  MovimientoRepuestoSolicitud, RepuestoActualizarSolicitud, RepuestoCrearSolicitud,
+  MovimientoRepuestoSolicitud, PlanPreventivoActualizarSolicitud, PlanPreventivoCrearSolicitud,
+  RepuestoActualizarSolicitud, RepuestoCrearSolicitud,
+  CheckoutSuscripcionSolicitud, EventoPagoSuscripcion, SedeSolicitud, UsuarioSedeSolicitud,
+  IntegracionERPSolicitud, SyncStockERPSolicitud,
 } from './dominio.js';
-
-import type { SedeSolicitud } from './dominio.js';
 
 interface Options {
   secret: string;
@@ -30,15 +36,26 @@ interface Options {
   tokenSeconds?: number;
   maxAttempts?: number;
   windowMs?: number;
+  pagosSimulados?: boolean;
+  pagoWebhookSecret?: string;
 }
 interface Context { usuario: UsuarioSesion; sesionId: string }
 export function publico(user: UsuarioSesion): UsuarioSesion {
   const { id, rut, nombre, rol, activo, tenant_id, plan } = user;
-  return { id, rut, nombre, rol, activo, tenant_id, plan };
+  const sede_id = sedeDe(user);
+  return { id, rut, nombre, rol, activo, tenant_id, plan, ...(sede_id === null ? {} : { sede_id }) };
+}
+
+function sedeDe(usuario: UsuarioSesion): number | null {
+  return usuario.rol === 'JEFATURA' ? null : usuario.sede_id ?? null;
 }
 
 export async function crearAplicacion(options: Options) {
   if (Buffer.byteLength(options.secret) < 32) throw new Error('JWT_SECRET debe tener al menos 32 bytes.');
+  const pagoWebhookSecret = options.pagoWebhookSecret || undefined;
+  if (pagoWebhookSecret && Buffer.byteLength(pagoWebhookSecret) < 32) {
+    throw new Error('SIGEM_WEBHOOK_PAGO_SECRET debe tener al menos 32 bytes.');
+  }
   const now = options.now ?? Date.now;
   const ttl = options.tokenSeconds ?? 28_800;
   const max = options.maxAttempts ?? 5;
@@ -51,6 +68,11 @@ export async function crearAplicacion(options: Options) {
   const historial = new HistorialEquipos(datos);
   const sedes = new Sedes(datos);
   datos.migrarTenantsOperativos();
+  migrarPreventivos(datos.db);
+  const preventivos = new Preventivos(datos, ordenes);
+  const dashboard = new Dashboard(datos);
+  const suscripciones = new Suscripciones(datos, options.pagosSimulados === true);
+  const integracionesERP = new IntegracionesERP(datos, inventario);
   const dummy = await hashPassword(randomUUID());
   const app = express();
   app.disable('x-powered-by');
@@ -60,9 +82,32 @@ export async function crearAplicacion(options: Options) {
   // Solo este endpoint admite fotos codificadas y autoriza antes de leer el cuerpo.
   app.post('/fallas', autenticado, accesoFallas, express.json({ limit: '21mb', strict: true }), (req, res) => {
     const input = solicitud<FallaCrearSolicitud>('fallas', 'FallaCrearSolicitud', req.body);
-    const { id, tenant_id } = (res.locals as Context).usuario;
-    const falla = datos.enTenant(tenant_id, () => fallas.crear(input, id, now()));
+    const usuario = (res.locals as Context).usuario;
+    const falla = datos.enTenant(usuario.tenant_id, () => fallas.crear(input, usuario.id, now()), sedeDe(usuario));
     res.status(201).json(falla);
+  });
+
+  // El parser general no debe consumir los bytes que autentica el proveedor.
+  app.post('/suscripciones/webhook', express.raw({ limit: '16kb', type: 'application/json' }), (req, res) => {
+    if (!pagoWebhookSecret) throw new ErrorAPI(503, 'PAGOS_NO_CONFIGURADOS', 'El webhook de pagos está deshabilitado.');
+    const firma = req.get('x-sigem-signature');
+    if (!firma || !/^sha256=[0-9a-f]{64}$/.test(firma)) {
+      throw new ErrorAPI(401, 'FIRMA_PAGO_INVALIDA', 'La firma del pago no es válida.');
+    }
+    const bytes: unknown = req.body;
+    if (!Buffer.isBuffer(bytes)) throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'El webhook requiere un cuerpo JSON.');
+    const recibida = Buffer.from(firma.slice(7), 'hex');
+    const esperada = createHmac('sha256', pagoWebhookSecret).update(bytes).digest();
+    if (!timingSafeEqual(recibida, esperada)) throw new ErrorAPI(401, 'FIRMA_PAGO_INVALIDA', 'La firma del pago no es válida.');
+    let contenido: unknown;
+    try {
+      contenido = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'El webhook requiere un cuerpo JSON UTF-8 válido.');
+    }
+    const pago = solicitud<EventoPagoSuscripcion>('suscripciones', 'EventoPagoSuscripcion', contenido);
+    suscripciones.confirmarWebhook(pago, now());
+    res.status(204).end();
   });
   app.use(express.json({ limit: '16kb', strict: true }));
 
@@ -96,7 +141,7 @@ export async function crearAplicacion(options: Options) {
 
     res.locals.usuario = usuario;
     res.locals.sesionId = sesionId;
-    datos.enTenant(usuario.tenant_id, () => next());
+    datos.enTenant(usuario.tenant_id, () => next(), sedeDe(usuario));
   }
   function leerActivos(_req: Request, res: Response, next: NextFunction): void {
     const rol = (res.locals as Context).usuario.rol;
@@ -203,7 +248,7 @@ export async function crearAplicacion(options: Options) {
         });
         datos.auditar(actor?.id ?? creado.id, 'USUARIO_REGISTRADO', creado.id, ahora);
         return creado;
-      });
+      }, actor ? sedeDe(actor) : null);
     });
     res.status(201).json(publico(usuario));
   });
@@ -336,6 +381,34 @@ export async function crearAplicacion(options: Options) {
     res.json(ordenes.cerrar(ordenId, input, id, now()));
   });
 
+  function administrarPreventivos(_req: Request, res: Response, next: NextFunction): void {
+    const { rol } = (res.locals as Context).usuario;
+    if (!administrar(rol)) throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo Supervisor y Jefatura gestionan planes preventivos.');
+    next();
+  }
+
+  app.get('/preventivos', autenticado, (req, res) => {
+    const { id, rol } = (res.locals as Context).usuario;
+    if (!administrar(rol) && rol !== 'TECNICO') {
+      throw new ErrorAPI(403, 'SIN_PERMISO', 'El rol no tiene acceso a planes preventivos.');
+    }
+    res.json(preventivos.listar(now(), rol === 'TECNICO' ? id : undefined));
+  });
+  app.post('/preventivos', autenticado, administrarPreventivos, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    const input = solicitud<PlanPreventivoCrearSolicitud>('preventivos', 'PlanPreventivoCrearSolicitud', req.body);
+    res.status(201).json(preventivos.crear(input, id, now()));
+  });
+  app.patch('/preventivos/:id', autenticado, administrarPreventivos, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    const input = solicitud<PlanPreventivoActualizarSolicitud>('preventivos', 'PlanPreventivoActualizarSolicitud', req.body);
+    res.json(preventivos.actualizar(idPositivo(req.params.id), input, id, now()));
+  });
+  app.post('/preventivos/evaluar', autenticado, administrarPreventivos, (_req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    res.json(preventivos.evaluar(now(), id));
+  });
+
   function gestionarInventario(rol: Rol): boolean {
     return rol === 'BODEGA' || rol === 'JEFATURA';
   }
@@ -388,10 +461,31 @@ export async function crearAplicacion(options: Options) {
 
   function requiereEmpresa(_req: Request, res: Response, next: NextFunction): void {
     if ((res.locals as Context).usuario.plan !== 'EMPRESA') {
-      throw new ErrorAPI(403, 'PLAN_EMPRESA_REQUERIDO', 'La gestión de sedes está disponible en el plan Empresa.');
+      throw new ErrorAPI(403, 'PLAN_EMPRESA_REQUERIDO', 'Esta función está disponible en el plan Empresa.');
     }
     next();
   }
+
+  function escribirSedes(req: Request, res: Response, next: NextFunction): void {
+    if (datos.sedeId !== null) throw new ErrorAPI(403, 'SIN_PERMISO', 'La gestión de sedes requiere acceso a toda la organización.');
+    escribirActivos(req, res, next);
+  }
+
+  function soloJefatura(_req: Request, res: Response, next: NextFunction): void {
+    if ((res.locals as Context).usuario.rol !== 'JEFATURA') {
+      throw new ErrorAPI(403, 'SIN_PERMISO', 'Esta operación requiere una cuenta de Jefatura.');
+    }
+    next();
+  }
+
+  app.get('/usuarios', autenticado, soloJefatura, requiereEmpresa, (_req, res) => {
+    res.json(datos.listarUsuariosSede());
+  });
+  app.patch('/usuarios/:id/sede', autenticado, soloJefatura, requiereEmpresa, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    const { sede_id } = solicitud<UsuarioSedeSolicitud>('usuarios', 'UsuarioSedeSolicitud', req.body);
+    res.json(datos.asignarSedeUsuario(idPositivo(req.params.id), sede_id, id, now()));
+  });
 
   app.get('/sedes', autenticado, requiereEmpresa, (_req, res) => {
     res.json(sedes.listar());
@@ -399,17 +493,86 @@ export async function crearAplicacion(options: Options) {
   app.get('/sedes/:id', autenticado, requiereEmpresa, (req, res) => {
     res.json(sedes.obtener(idPositivo(req.params.id)));
   });
-  app.post('/sedes', autenticado, requiereEmpresa, escribirActivos, (req, res) => {
+  app.post('/sedes', autenticado, requiereEmpresa, escribirSedes, (req, res) => {
     const ficha = solicitud<SedeSolicitud>('sedes', 'SedeSolicitud', req.body);
     res.status(201).json(sedes.crear(ficha, (res.locals as Context).usuario.id, now()));
   });
-  app.put('/sedes/:id', autenticado, requiereEmpresa, escribirActivos, (req, res) => {
+  app.put('/sedes/:id', autenticado, requiereEmpresa, escribirSedes, (req, res) => {
     const ficha = solicitud<SedeSolicitud>('sedes', 'SedeSolicitud', req.body);
     res.json(sedes.editar(idPositivo(req.params.id), ficha, (res.locals as Context).usuario.id, now()));
   });
-  app.delete('/sedes/:id', autenticado, requiereEmpresa, escribirActivos, (req, res) => {
+  app.delete('/sedes/:id', autenticado, requiereEmpresa, escribirSedes, (req, res) => {
     sedes.eliminar(idPositivo(req.params.id), (res.locals as Context).usuario.id, now());
     res.status(204).end();
+  });
+
+  app.get('/dashboard/metricas', autenticado, (req, res) => {
+    const { rol, plan } = (res.locals as Context).usuario;
+    if (!administrar(rol)) {
+      throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo Supervisor y Jefatura pueden consultar el dashboard.');
+    }
+    if (Object.keys(req.query).some(clave => clave !== 'sede_id')) {
+      throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'El dashboard solo admite el filtro sede_id.');
+    }
+    const sedeId = req.query.sede_id === undefined ? undefined : idPositivo(req.query.sede_id);
+    res.json(dashboard.consultar(now(), plan, sedeId));
+  });
+
+  function gestionarSuscripcion(_req: Request, res: Response, next: NextFunction): void {
+    if ((res.locals as Context).usuario.rol !== 'JEFATURA') {
+      throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo Jefatura gestiona la suscripción de su empresa.');
+    }
+    next();
+  }
+
+  app.get('/suscripciones', autenticado, gestionarSuscripcion, (_req, res) => {
+    res.json(suscripciones.resumen());
+  });
+  app.post('/suscripciones/checkout', autenticado, gestionarSuscripcion, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    const { plan } = solicitud<CheckoutSuscripcionSolicitud>('suscripciones', 'CheckoutSuscripcionSolicitud', req.body);
+    res.status(201).json(suscripciones.checkout(plan, id, now()));
+  });
+  app.post('/suscripciones/:id/cancelar', autenticado, gestionarSuscripcion, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    res.json(suscripciones.cancelar(idPositivo(req.params.id), id, now()));
+  });
+  app.post('/suscripciones/:id/simular-pago', autenticado, gestionarSuscripcion, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    res.json(suscripciones.simularPago(idPositivo(req.params.id), id, now()));
+  });
+
+  app.get('/integraciones/erp', autenticado, soloJefatura, requiereEmpresa, (_req, res) => {
+    res.json(integracionesERP.obtener());
+  });
+  app.put('/integraciones/erp', autenticado, soloJefatura, requiereEmpresa, (req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    const input = solicitud<IntegracionERPSolicitud>('erp', 'IntegracionERPSolicitud', req.body);
+    res.json(integracionesERP.configurar(input, id, now()));
+  });
+  app.post('/integraciones/erp/clave', autenticado, soloJefatura, requiereEmpresa, (_req, res) => {
+    const { id } = (res.locals as Context).usuario;
+    res.status(201).json(integracionesERP.generarClave(id, now()));
+  });
+
+  function autenticarERP(req: Request, _res: Response, next: NextFunction): void {
+    const tenantId = integracionesERP.autenticar(req.get('X-API-Key'));
+    datos.enTenant(tenantId, () => next());
+  }
+  app.get('/api/v1/erp/costos-repuestos', autenticarERP, (req, res) => {
+    if (Object.keys(req.query).some(clave => clave !== 'page' && clave !== 'size')) {
+      throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'El catálogo ERP admite los filtros page y size.');
+    }
+    const page = req.query.page === undefined ? 1 : idPositivo(req.query.page);
+    const size = req.query.size === undefined ? 20 : idPositivo(req.query.size);
+    if (size > 100 || !Number.isSafeInteger((page - 1) * size)) {
+      throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'La paginación está fuera de rango.');
+    }
+    res.json(integracionesERP.costos(page, size));
+  });
+  app.post('/api/v1/erp/sync-stock', autenticarERP, (req, res) => {
+    const input = solicitud<SyncStockERPSolicitud>('erp', 'SyncStockERPSolicitud', req.body);
+    res.json(integracionesERP.sincronizar(input, now()));
   });
 
   app.use((_req, res) => { res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'La ruta no existe.' }); });
@@ -424,5 +587,12 @@ export async function crearAplicacion(options: Options) {
     }
   };
   app.use(errores);
-  return { app, datos, close: () => datos.close() };
+  return {
+    app,
+    datos,
+    evaluarPreventivosProgramados: (avisarError: (tenantId: number, error: unknown) => void) => {
+      preventivos.evaluarEmpresasActivas(now(), avisarError);
+    },
+    close: () => datos.close(),
+  };
 }

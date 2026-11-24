@@ -134,3 +134,29 @@ Particular admite hasta 50 equipos vigentes. El cálculo y el alta ocurren en un
 El plan Empresa permite consultar y gestionar sedes propias. Supervisor y Jefatura pueden crear, editar, eliminar sedes sin equipos asignados y asignar o quitar la sede desde el formulario del equipo. El operador de la instalación puede habilitar Empresa para un cliente activo con `npm run tenant:empresa -- <id>`. El plan se comprueba en el servidor en cada solicitud autenticada.
 
 Pasaron 73 pruebas de backend, 34 operaciones OpenAPI y la compilación del frontend. Chromium verificó el aviso del equipo 51 y la creación y asignación de una sede. El ensayo de migración sobre una copia de la base local conservó los registros de las 12 tablas verificadas.
+
+## Mantenimiento preventivo
+
+Supervisor y Jefatura programan planes por fecha en Particular y Empresa. Empresa también habilita disparadores por horas de uso y alertas de vencimiento en la pantalla de Preventivos. El plan se vincula con un equipo y un técnico activo.
+
+El servidor evalúa los planes al iniciar y cada minuto. Desde Preventivos también se puede solicitar la evaluación manual. Una transacción registra la orden, su ciclo y el siguiente vencimiento. SQLite admite una sola orden abierta por plan y una sola por ciclo. El técnico trabaja la orden generada con el flujo de estado y cierre habitual.
+
+## Dashboard gerencial
+
+Supervisor y Jefatura acceden a órdenes abiertas, vencidas, MTTR, fallas recurrentes y cumplimiento preventivo de su organización. El MTTR promedia los minutos de las intervenciones correctivas cerradas. El cumplimiento compara las preventivas cerradas a tiempo con las ya vencidas o cerradas. Los vencimientos se calculan por fecha civil de Chile. Un indicador sin base suficiente aparece con un guion.
+
+Empresa puede comparar sedes desde el consolidado y filtrar el informe por una sede. Los usuarios con sede asignada consultan únicamente la parte autorizada del informe. El consolidado también muestra la categoría Sin sede asignada cuando corresponde.
+
+## Contratación y suscripciones
+
+Desde la landing se preselecciona el plan y, después de ingresar con Jefatura, se puede iniciar el checkout en Mi suscripción. Las tarifas se fijan en el servidor. Particular cuesta $54.990 CLP mensuales. Empresa cuesta $600.000 CLP mensuales, con $2.500.000 CLP de puesta en marcha en la primera activación pagada. La pantalla muestra la suscripción actual, la renovación, el historial y la cancelación.
+
+Para probar el checkout local, define `SIGEM_PAGOS_SIMULADOS=1` en `.env` y reinicia la API. Luego elige el plan, inicia el checkout y pulsa Simular pago. Para recibir confirmaciones de un integrador, `SIGEM_WEBHOOK_PAGO_SECRET` habilita el webhook firmado descrito en el contrato y debe tener al menos 32 bytes. La confirmación válida registra el cobro y actualiza el plan en una transacción. Reenviar el mismo evento no duplica el cobro. Al cancelar una suscripción activa, la organización vuelve a Particular y conserva sus registros. El procesamiento de cargos reales requiere conectar una pasarela de pago.
+
+## Acceso por sede e integración ERP
+
+Jefatura de Empresa asigna sedes a los usuarios desde Sedes y Sucursales. Un usuario asignado solo puede operar equipos y órdenes de su sede dentro de los permisos de su rol. Este alcance también se aplica a las fallas, fotos, avisos, historial, preventivos e indicadores asociados. Jefatura conserva el alcance de toda la organización. El stock sigue siendo compartido por el cliente.
+
+En Integración ERP, Jefatura de Empresa genera o rota su clave, configura la URL HTTPS del webhook y activa la integración. La clave completa se entrega únicamente al generarla. El ERP envía `X-API-Key` a `GET /api/v1/erp/costos-repuestos` y `POST /api/v1/erp/sync-stock`. Los costos se toman del costo unitario en CLP registrado en Inventario. El costo queda sin valor cuando falta registrarlo. La sincronización aplica lotes de hasta 100 repuestos y registra los movimientos en una sola transacción. Repetir la referencia con los mismos datos devuelve el recibo original. Esta entrega guarda la configuración del webhook ERP y expone la API de consulta y sincronización.
+
+Verificación de los cuatro módulos finales. Compilaron el backend y el frontend. Pasaron 90 pruebas de backend y se validaron 51 operaciones OpenAPI. En Chromium se probaron los planes y órdenes preventivas, los indicadores y permisos, el flujo móvil de pago simulado y cancelación, la asignación y filtración por sede y la autenticación ERP. La migración ensayada conservó los registros de 15 tablas existentes y no produjo errores de referencias.

@@ -10,6 +10,40 @@ export interface Tenant {
 export interface SedeSolicitud { nombre: string; direccion: string }
 export interface SedeRespuesta extends SedeSolicitud { id: number }
 
+export type EstadoSuscripcion = 'PENDIENTE' | 'ACTIVA' | 'CANCELADA';
+export interface CheckoutSuscripcionSolicitud { plan: PlanTenant }
+export interface SuscripcionRespuesta {
+  id: number;
+  plan: PlanTenant;
+  estado: EstadoSuscripcion;
+  monto_clp: number;
+  fecha_renovacion: string | null;
+  metodo_pago_ref: string | null;
+  puesta_marcha_clp: number;
+}
+export interface CobroSuscripcion {
+  id: number;
+  suscripcion_id: number;
+  plan: PlanTenant;
+  monto_clp: number;
+  puesta_marcha_clp: number;
+  fecha: string;
+  metodo_pago_ref: string | null;
+}
+export interface ResumenSuscripcion {
+  plan_actual: PlanTenant;
+  activa: SuscripcionRespuesta | null;
+  pendiente: SuscripcionRespuesta | null;
+  cobros: CobroSuscripcion[];
+  simulacion_disponible: boolean;
+}
+export interface EventoPagoSuscripcion {
+  evento_id: string;
+  suscripcion_id: number;
+  monto_clp: number;
+  metodo_pago_ref?: string;
+}
+
 export type Rol = 'TECNICO' | 'SUPERVISOR' | 'TRABAJADOR' | 'BODEGA' | 'JEFATURA';
 
 declare const codigoEquipo: unique symbol;
@@ -29,7 +63,15 @@ export interface UsuarioSesion {
   activo: boolean;
   tenant_id: number;
   plan: PlanTenant;
+  sede_id?: number;
 }
+export interface UsuarioSede {
+  id: number;
+  nombre: string;
+  rol: Rol;
+  sede_id: number | null;
+}
+export interface UsuarioSedeSolicitud { sede_id: number | null }
 export interface RegistroSolicitud extends LoginSolicitud { nombre: string; rol: Rol; nombre_empresa?: string }
 export interface LoginRespuesta { token: string; usuario: UsuarioSesion; expiraEn: number }
 export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_INACTIVO'
@@ -40,7 +82,11 @@ export type CodigoError = 'RUT_INVALIDO' | 'CREDENCIALES_INVALIDAS' | 'USUARIO_I
   | 'REPUESTO_NO_ENCONTRADO' | 'REPUESTO_CON_STOCK' | 'STOCK_INSUFICIENTE'
   | 'FOTO_NO_ENCONTRADA' | 'NOTIFICACION_NO_ENCONTRADA'
   | 'CUPO_EQUIPOS_ALCANZADO' | 'PLAN_EMPRESA_REQUERIDO'
-  | 'SEDE_NO_ENCONTRADA' | 'SEDE_DUPLICADA' | 'SEDE_EN_USO';
+  | 'SEDE_NO_ENCONTRADA' | 'SEDE_DUPLICADA' | 'SEDE_EN_USO' | 'PREVENTIVO_NO_ENCONTRADO'
+  | 'CHECKOUT_PENDIENTE' | 'PLAN_YA_ACTIVO' | 'SUSCRIPCION_NO_ENCONTRADA' | 'SIMULACION_PAGO_DESACTIVADA'
+  | 'ESTADO_SUSCRIPCION_INVALIDO' | 'FIRMA_PAGO_INVALIDA' | 'MONTO_PAGO_INVALIDO'
+  | 'EVENTO_PAGO_CONFLICTO' | 'PAGOS_NO_CONFIGURADOS' | 'USUARIO_NO_ENCONTRADO'
+  | 'CLAVE_ERP_INVALIDA' | 'CLAVE_ERP_REQUERIDA' | 'INTEGRACION_ERP_INACTIVA' | 'REFERENCIA_ERP_CONFLICTO';
 export interface ErrorRespuesta { codigo: CodigoError; mensaje: string }
 
 export interface ActivoCrearSolicitud {
@@ -170,8 +216,10 @@ export interface IntervencionRespuesta {
   registrada_en: string;
 }
 
-export interface OrdenRespuesta extends OrdenCrearSolicitud {
+export interface OrdenRespuesta extends Omit<OrdenCrearSolicitud, 'falla_id'> {
   id: number;
+  falla_id: number | null;
+  plan_preventivo_id?: number;
   tecnico_nombre: string;
   equipo_codigo: CodigoEquipo;
   equipo_nombre: string;
@@ -183,6 +231,39 @@ export interface OrdenRespuesta extends OrdenCrearSolicitud {
 export interface OrdenDetalleRespuesta extends OrdenRespuesta {
   intervencion: IntervencionRespuesta | null;
 }
+
+export type TipoDisparadorPreventivo = 'FECHA' | 'HORAS_USO';
+
+type ConfiguracionPreventiva =
+  | { tipo_disparador: 'FECHA'; intervalo_dias: number; proxima_fecha: string; intervalo_horas?: never; proximas_horas?: never }
+  | { tipo_disparador: 'HORAS_USO'; intervalo_horas: number; proximas_horas: number; intervalo_dias?: never; proxima_fecha?: never };
+
+export type PlanPreventivoCrearSolicitud = ConfiguracionPreventiva & {
+  equipo_id: number;
+  tecnico_id: number;
+  descripcion: string;
+};
+
+export interface PlanPreventivoActualizarSolicitud { activo: boolean }
+
+export interface PlanPreventivoRespuesta {
+  id: number;
+  equipo_id: number;
+  equipo_codigo: CodigoEquipo;
+  equipo_nombre: string;
+  tecnico_id: number;
+  descripcion: string;
+  tipo_disparador: TipoDisparadorPreventivo;
+  intervalo_dias: number | null;
+  intervalo_horas: number | null;
+  proxima_fecha: string | null;
+  proximas_horas: number | null;
+  activo: boolean;
+  orden_abierta_id: number | null;
+  alerta_vencimiento: boolean;
+}
+
+export interface EvaluacionPreventivosRespuesta { generadas: number; ordenes_ids: number[] }
 
 export type FallaHistorialEquipo = Pick<FallaRespuesta, 'id' | 'descripcion' | 'prioridad' | 'fecha_reporte'>;
 
@@ -218,6 +299,7 @@ export interface RepuestoActualizarSolicitud {
   nombre: string;
   descripcion?: string;
   stock_minimo: number;
+  costo_unitario_clp?: number | null;
 }
 
 export interface RepuestoCrearSolicitud extends RepuestoActualizarSolicitud { codigo: string }
@@ -229,6 +311,7 @@ export interface RepuestoRespuesta {
   descripcion: string | null;
   stock_actual: number;
   stock_minimo: number;
+  costo_unitario_clp?: number | null;
 }
 
 export interface ConsultaRepuestos { q?: string; page: number; size: number }
@@ -243,3 +326,36 @@ export interface MovimientoRepuestoSolicitud {
 
 export interface RepuestoConsumoSolicitud { repuesto_id: number; cantidad: number }
 export interface RepuestoConsumidoRespuesta extends RepuestoConsumoSolicitud { codigo: string; nombre: string }
+
+export interface FallaRecurrente {
+  equipo_id: number;
+  equipo_codigo: CodigoEquipo;
+  equipo_nombre: string;
+  total: number;
+}
+
+export interface MetricasDashboardBase {
+  ordenes_abiertas: number;
+  ordenes_vencidas: number;
+  mttr_minutos: number | null;
+  fallas_recurrentes: FallaRecurrente[];
+  cumplimiento_preventivo_pct: number | null;
+  preventivas_en_plazo: number;
+  preventivas_evaluadas: number;
+}
+
+export interface MetricasSede {
+  sede_id: number | null;
+  nombre: string;
+  metricas: MetricasDashboardBase;
+}
+export interface MetricasDashboard extends MetricasDashboardBase { por_sede?: MetricasSede[] }
+
+export interface IntegracionERPSolicitud { webhook_url: string | null; activo: boolean }
+export interface IntegracionERPRespuesta extends IntegracionERPSolicitud { clave_configurada: boolean }
+export interface ClaveERP { api_key: string }
+export interface StockERP { codigo: string; stock_actual: number }
+export interface CostoERP extends StockERP { nombre: string; costo_unitario_clp: number | null }
+export interface PaginaCostosERP { items: CostoERP[]; total: number; page: number; size: number }
+export interface SyncStockERPSolicitud { referencia: string; items: StockERP[] }
+export interface SyncStockERPRespuesta { referencia: string; actualizados: number }

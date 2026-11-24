@@ -117,6 +117,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [descartarSesion])
 
+  const actualizarUsuario = useCallback(async () => {
+    const token = tokenActual.current
+    const usuario = await solicitar<UsuarioSesion>('/auth/me')
+    if (tokenActual.current !== token) return
+    setEstado((anterior) => anterior.tipo === 'activa' && anterior.sesion.token === token
+      ? { ...anterior, usuario } : anterior)
+  }, [solicitar])
+
   async function cerrarSesion() {
     const token = tokenActual.current
     if (!token) return
@@ -141,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      estado, plan, puedeLeer, puedeEscribir, iniciarSesion, cerrarSesion, reintentar, solicitar,
+      estado, plan, puedeLeer, puedeEscribir, iniciarSesion, cerrarSesion, reintentar, actualizarUsuario, solicitar,
     }}>
       {children}
     </AuthContext.Provider>

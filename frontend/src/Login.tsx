@@ -4,12 +4,14 @@ import { useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router'
 import { useAuth } from './AuthContext'
 import { ErrorApi, mensajeError } from './api'
+import { PLANES, leerPlan, rutaConPlan } from './planes'
 
 import { normalizarRut } from './rut'
 
 export function Login() {
   const { estado, iniciarSesion } = useAuth()
-  const { state } = useLocation()
+  const { state, search } = useLocation()
+  const plan = leerPlan(new URLSearchParams(search))
   const rutRegistrado = typeof state?.rutRegistrado === 'string' ? state.rutRegistrado : ''
   const [rut, setRut] = useState(rutRegistrado)
   const [password, setPassword] = useState('')
@@ -22,7 +24,7 @@ export function Login() {
   const campoPassword = useRef<HTMLInputElement>(null)
 
   if (estado.tipo === 'activa') {
-    return <Navigate to="/inicio" replace />
+    return <Navigate to={plan && estado.usuario.rol === 'JEFATURA' ? rutaConPlan('/suscripcion', plan) : '/inicio'} replace />
   }
 
   async function ingresar(evento: FormEvent<HTMLFormElement>) {
@@ -69,6 +71,7 @@ export function Login() {
       </div>
       <section className="panel-login" aria-labelledby="titulo-login">
         <h1 id="titulo-login">Iniciar sesión</h1>
+        {plan && <p className="ayuda registro-plan">Seleccionaste el plan {PLANES[plan].nombre}. Jefatura puede continuar desde Mi suscripción.</p>}
         {estado.tipo === 'sin-sesion' && estado.aviso && <p className="aviso" role="status">{estado.aviso}</p>}
         {rutRegistrado && <p className="aviso aviso-exito" role="status">Cuenta creada. Ingresa con tu RUT y contraseña.</p>}
         {error && <p className="aviso aviso-error" role="alert">{error}</p>}
@@ -120,7 +123,7 @@ export function Login() {
             {enviando ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
-        <p className="enlace-cuenta"><Link className="enlace-con-icono" to="/registro"><Icono nombre="cuenta" />¿No tienes cuenta? Regístrate</Link></p>
+        <p className="enlace-cuenta"><Link className="enlace-con-icono" to={rutaConPlan('/registro', plan)}><Icono nombre="cuenta" />¿No tienes cuenta? Regístrate</Link></p>
         <p className="solo-lectores" role="status">{enviando ? 'Ingresando…' : ''}</p>
       </section>
     </main>

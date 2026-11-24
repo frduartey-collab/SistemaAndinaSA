@@ -26,7 +26,11 @@ export async function llamarApi<T>(
     | `/equipos/${number}/historial?${string}`
     | `/fallas/${number}` | `/fallas/${number}/fotos/${number}` | "/notificaciones" | `/notificaciones?${string}` | `/notificaciones/${number}/leida`
     | "/ordenes" | `/ordenes?${string}` | `/ordenes/${number}` | `/ordenes/${number}/estado` | `/ordenes/${number}/cierre` | `/ordenes/tecnicos?${string}`
-    | "/repuestos" | `/repuestos?${string}` | `/repuestos/${number}` | `/repuestos/${number}/movimientos`,
+    | "/repuestos" | `/repuestos?${string}` | `/repuestos/${number}` | `/repuestos/${number}/movimientos`
+    | "/preventivos" | `/preventivos/${number}` | "/preventivos/evaluar"
+    | "/dashboard/metricas" | `/dashboard/metricas?sede_id=${number}`
+    | "/suscripciones" | "/suscripciones/checkout" | `/suscripciones/${number}/cancelar` | `/suscripciones/${number}/simular-pago`
+    | "/usuarios" | `/usuarios/${number}/sede` | "/integraciones/erp" | "/integraciones/erp/clave",
   opciones: OpcionesApi = {},
   token?: string,
 ): Promise<T> {

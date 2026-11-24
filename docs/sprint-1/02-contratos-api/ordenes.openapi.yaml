@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: Manufacturas Andina — Órdenes de trabajo
-  version: 0.3.0
+  version: 0.4.0
   description: |
     HU-04 y HU-05 fase 1. Supervisor y Jefatura crean y consultan todas las
     órdenes. El técnico consulta e inicia sus asignaciones y registra una
     intervención para cerrarlas. Supervisor y Jefatura también pueden iniciar
-    órdenes. Trabajador y Bodega no acceden al módulo.
+    órdenes. Trabajador y Bodega no acceden al módulo. Las órdenes preventivas
+    se generan a partir de un plan y tienen falla_id nulo.
 security:
   - bearerAuth: []
 paths:
@@ -313,7 +314,11 @@ components:
       required: [id, falla_id, tecnico_id, tecnico_nombre, equipo_codigo, equipo_nombre, descripcion, prioridad, fecha_limite, estado]
       properties:
         id: { $ref: "#/components/schemas/Id" }
-        falla_id: { $ref: "#/components/schemas/Id" }
+        falla_id:
+          oneOf:
+            - { $ref: "#/components/schemas/Id" }
+            - { type: "null" }
+        plan_preventivo_id: { $ref: "#/components/schemas/Id" }
         tecnico_id: { $ref: "#/components/schemas/Id" }
         tecnico_nombre: { type: string }
         equipo_codigo: { type: string, pattern: '^EQ-[0-9]{4}$' }

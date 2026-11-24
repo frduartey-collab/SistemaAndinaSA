@@ -187,7 +187,9 @@ export function OrdenesTrabajo() {
                 <li className="orden" key={orden.id}>
                   <div className="orden-cabecera">
                     <div>
-                      <p className="ayuda">Orden #{orden.id} · Falla #{orden.falla_id}</p>
+                      <p className="ayuda">Orden #{orden.id} · {orden.falla_id === null
+                        ? 'Preventiva' + (orden.plan_preventivo_id ? ' · Plan #' + orden.plan_preventivo_id : '')
+                        : 'Falla #' + orden.falla_id}</p>
                       <h2>{orden.equipo_codigo} · {orden.equipo_nombre}</h2>
                     </div>
                     <span className={'insignia orden-' + orden.estado.toLowerCase()}><Icono nombre={ICONOS_ESTADO[orden.estado]} />{ESTADOS[orden.estado]}</span>
@@ -195,7 +197,7 @@ export function OrdenesTrabajo() {
                   <p className="descripcion-falla">{orden.descripcion}</p>
                   <dl className="orden-datos">
                     {puedeEscribir && <div><dt>Técnico</dt><dd>{orden.tecnico_nombre}</dd></div>}
-                    <div><dt>Prioridad de la falla</dt><dd>{orden.prioridad}</dd></div>
+                    <div><dt>{orden.falla_id === null ? 'Prioridad del equipo' : 'Prioridad de la falla'}</dt><dd>{orden.prioridad}</dd></div>
                     <div><dt>Fecha límite</dt><dd><time dateTime={orden.fecha_limite}>
                       {FORMATO_FECHA.format(new Date(orden.fecha_limite + 'T00:00:00Z'))}
                     </time></dd></div>

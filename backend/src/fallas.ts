@@ -106,7 +106,8 @@ export class Fallas {
         INSERT INTO notificaciones_falla(tenant_id, falla_id, usuario_id, fecha)
         SELECT tenant_id, ?, id, ? FROM usuarios
         WHERE tenant_id = ? AND activo = 1 AND rol IN ('SUPERVISOR', 'JEFATURA')
-      `).run(id, fecha, this.datos.tenantId);
+          AND (sede_id IS NULL OR sede_id = ?)
+      `).run(id, fecha, this.datos.tenantId, equipo.sede_id ?? null);
       this.datos.auditar(usuarioId, 'FALLA_REPORTADA', id, ahora);
       return this.obtener(id);
     });
@@ -115,6 +116,7 @@ export class Fallas {
   listar(consulta: ConsultaFallas, usuarioId?: number): PaginaFallas {
     const condiciones = ['f.tenant_id = ?'];
     const parametros = [this.datos.tenantId];
+    if (this.datos.sedeId !== null) { condiciones.push('a.sede_id = ?'); parametros.push(this.datos.sedeId); }
     if (usuarioId !== undefined) { condiciones.push('f.usuario_id = ?'); parametros.push(usuarioId); }
     if (consulta.sin_orden) {
       condiciones.push("f.estado = 'REPORTADA'", 'a.deleted_at IS NULL',
@@ -150,11 +152,14 @@ export class Fallas {
     const filtro = usuarioId === undefined ? '' : ' AND f.usuario_id = ?';
     const parametros = [this.datos.tenantId, id, fotoId];
     if (usuarioId !== undefined) parametros.push(usuarioId);
+    const sede = this.datos.sedeId === null ? '' : ' AND a.sede_id = ?';
+    if (this.datos.sedeId !== null) parametros.push(this.datos.sedeId);
     const foto = this.datos.db.prepare<number[], FotoFallaBinaria>(`
       SELECT ff.tipo, ff.contenido
       FROM fotos_falla ff
       JOIN fallas f ON f.id = ff.falla_id AND f.tenant_id = ff.tenant_id
-      WHERE f.tenant_id = ? AND f.id = ? AND ff.id = ?${filtro}
+      JOIN activos a ON a.id = f.equipo_id AND a.tenant_id = f.tenant_id
+      WHERE f.tenant_id = ? AND f.id = ? AND ff.id = ?${filtro}${sede}
     `).get(...parametros);
     if (!foto) throw new ErrorAPI(404, 'FOTO_NO_ENCONTRADA', 'No se encontró la foto.');
     return foto;
@@ -163,17 +168,21 @@ export class Fallas {
   listarNotificaciones(consulta: ConsultaNotificaciones, usuarioId: number): PaginaNotificaciones {
     const offset = (consulta.page - 1) * consulta.size;
     return this.datos.db.transaction(() => {
-      const filas = this.datos.db.prepare<[number, number, number, number], FilaNotificacion>(`
+      const filas = this.datos.db.prepare<[number, number, number | null, number | null, number, number], FilaNotificacion>(`
         SELECT n.id, n.falla_id, a.codigo AS equipo_codigo, a.nombre AS equipo_nombre,
                n.fecha, n.leida_en IS NOT NULL AS leida
         FROM notificaciones_falla n
         JOIN fallas f ON f.id = n.falla_id AND f.tenant_id = n.tenant_id
         JOIN activos a ON a.id = f.equipo_id AND a.tenant_id = f.tenant_id
-        WHERE n.tenant_id = ? AND n.usuario_id = ? ORDER BY n.fecha DESC, n.id DESC LIMIT ? OFFSET ?
-      `).all(this.datos.tenantId, usuarioId, consulta.size, offset);
-      const { total } = this.datos.db.prepare<[number, number], { total: number }>(
-        'SELECT count(*) AS total FROM notificaciones_falla WHERE tenant_id = ? AND usuario_id = ?',
-      ).get(this.datos.tenantId, usuarioId)!;
+        WHERE n.tenant_id = ? AND n.usuario_id = ? AND (? IS NULL OR a.sede_id = ?)
+        ORDER BY n.fecha DESC, n.id DESC LIMIT ? OFFSET ?
+      `).all(this.datos.tenantId, usuarioId, this.datos.sedeId, this.datos.sedeId, consulta.size, offset);
+      const { total } = this.datos.db.prepare<[number, number, number | null, number | null], { total: number }>(`
+        SELECT count(*) AS total FROM notificaciones_falla n
+        JOIN fallas f ON f.id=n.falla_id AND f.tenant_id=n.tenant_id
+        JOIN activos a ON a.id=f.equipo_id AND a.tenant_id=f.tenant_id
+        WHERE n.tenant_id = ? AND n.usuario_id = ? AND (? IS NULL OR a.sede_id = ?)
+      `).get(this.datos.tenantId, usuarioId, this.datos.sedeId, this.datos.sedeId)!;
       const items = filas.map(fila => ({ ...fila, leida: Boolean(fila.leida) }));
       return { ...consulta, items, total };
     })();
@@ -183,7 +192,12 @@ export class Fallas {
     const resultado = this.datos.db.prepare(`
       UPDATE notificaciones_falla SET leida_en = coalesce(leida_en, ?)
       WHERE tenant_id = ? AND id = ? AND usuario_id = ?
-    `).run(new Date(ahora).toISOString(), this.datos.tenantId, id, usuarioId);
+        AND EXISTS (
+          SELECT 1 FROM fallas f JOIN activos a ON a.id=f.equipo_id AND a.tenant_id=f.tenant_id
+          WHERE f.id=notificaciones_falla.falla_id AND f.tenant_id=notificaciones_falla.tenant_id
+            AND (? IS NULL OR a.sede_id=?)
+        )
+    `).run(new Date(ahora).toISOString(), this.datos.tenantId, id, usuarioId, this.datos.sedeId, this.datos.sedeId);
     if (resultado.changes === 0) {
       throw new ErrorAPI(404, 'NOTIFICACION_NO_ENCONTRADA', 'No se encontró la notificación.');
     }
@@ -193,8 +207,10 @@ export class Fallas {
     const filtro = usuarioId === undefined ? '' : ' AND f.usuario_id = ?';
     const parametros = [this.datos.tenantId, id];
     if (usuarioId !== undefined) parametros.push(usuarioId);
+    const sede = this.datos.sedeId === null ? '' : ' AND a.sede_id = ?';
+    if (this.datos.sedeId !== null) parametros.push(this.datos.sedeId);
     const falla = this.datos.db.prepare<number[], FallaRespuesta>(
-      SELECCION_FALLAS + ' WHERE f.tenant_id = ? AND f.id = ?' + filtro,
+      SELECCION_FALLAS + ' WHERE f.tenant_id = ? AND f.id = ?' + filtro + sede,
     ).get(...parametros);
     if (!falla) throw new ErrorAPI(404, 'FALLA_NO_ENCONTRADA', 'No se encontró la falla.');
     return falla;
