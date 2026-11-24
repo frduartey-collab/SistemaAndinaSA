@@ -50,7 +50,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
   }))
   const [errores, setErrores] = useState<Errores>({})
   const [error, setError] = useState('')
-  const [cupoAlcanzado, setCupoAlcanzado] = useState(false)
+  const [avisoCupo, setAvisoCupo] = useState('')
   const [guardando, setGuardando] = useState(false)
   const enCurso = useRef(false)
 
@@ -86,7 +86,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
 
     setErrores(encontrados)
     setError('')
-    setCupoAlcanzado(false)
+    setAvisoCupo('')
     const primerError = Object.keys(encontrados)[0]
     if (primerError || !criticidad) {
       const campo = formulario.elements.namedItem(primerError)
@@ -128,7 +128,7 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
       }
     } catch (fallo) {
       if (fallo instanceof ErrorApi && fallo.estado === 403 && fallo.codigo === 'CUPO_EQUIPOS_ALCANZADO') {
-        setCupoAlcanzado(true)
+        setAvisoCupo(fallo.message)
       } else if (fallo instanceof ErrorApi && fallo.codigo === 'CODIGO_DUPLICADO') {
         setErrores({ codigo: 'Este código ya está reservado, incluso si el equipo fue dado de baja.' })
       } else if (fallo instanceof ErrorApi && fallo.codigo === 'CODIGO_FORMATO_INVALIDO') {
@@ -157,9 +157,9 @@ export function FormularioEquipo({ equipo, borrador, alConservar, alCerrar, alGu
   return (
     <Dialogo titulo={equipo ? 'Editar equipo' : 'Nuevo equipo'} amplio ocupado={guardando} alCerrar={alCerrar}>
       <form noValidate onSubmit={guardar} aria-busy={guardando}>
-        {cupoAlcanzado && (
+        {avisoCupo && (
           <p className="aviso aviso-error" role="alert">
-            Has alcanzado el límite de tu plan. Actualiza al Plan Empresa para equipos ilimitados y gestión multi-sede
+            {avisoCupo} Actualiza al Plan Empresa para ampliar el cupo y gestionar varias sedes.
           </p>
         )}
         {error && <p className="aviso aviso-error" role="alert">{error}</p>}

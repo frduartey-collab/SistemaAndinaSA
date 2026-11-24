@@ -142,6 +142,8 @@ paths:
       description: |
         Solo el técnico asignado puede cerrar una orden EN_PROGRESO. El
         registro, el cambio a CERRADA y el consumo de inventario son atómicos.
+        El diagnóstico es obligatorio para nuevos cierres en Empresa. En Particular
+        el campo se omite de la solicitud y se guarda como null.
         Repetir la misma solicitud, con espacios recortados y los mismos
         consumos en cualquier orden, devuelve el cierre existente. Las
         intervenciones con texto previo conservan ese texto y devuelven una
@@ -165,7 +167,11 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorRespuesta" }
         "401": { $ref: "#/components/responses/NoAutorizado" }
-        "403": { $ref: "#/components/responses/SinPermiso" }
+        "403":
+          description: SIN_PERMISO o PLAN_EMPRESA_REQUERIDO cuando Particular envía un diagnóstico en un nuevo cierre.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
         "404":
           description: ORDEN_NO_ENCONTRADA o REPUESTO_NO_ENCONTRADO. La orden no es visible para el técnico o uno de los repuestos no está vigente.
           content:
@@ -277,7 +283,7 @@ components:
     OrdenCierreSolicitud:
       type: object
       additionalProperties: false
-      required: [diagnostico, solucion, duracion_minutos]
+      required: [solucion, duracion_minutos]
       properties:
         diagnostico: { $ref: "#/components/schemas/TextoIntervencion" }
         solucion: { $ref: "#/components/schemas/TextoIntervencion" }
@@ -296,7 +302,10 @@ components:
       properties:
         orden_id: { $ref: "#/components/schemas/Id" }
         autor_id: { $ref: "#/components/schemas/Id" }
-        diagnostico: { $ref: "#/components/schemas/TextoIntervencion" }
+        diagnostico:
+          oneOf:
+            - { $ref: "#/components/schemas/TextoIntervencion" }
+            - { type: "null" }
         solucion: { $ref: "#/components/schemas/TextoIntervencion" }
         duracion_minutos: { $ref: "#/components/schemas/DuracionMinutos" }
         repuestos_usados:

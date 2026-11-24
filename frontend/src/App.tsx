@@ -24,10 +24,11 @@ import { etiquetasRol } from './activos'
 import { mensajeError } from './api'
 import { leerPlan, rutaConPlan } from './planes'
 
-function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
+function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario, puedeVerDashboard }: {
   alSalir: () => void
   puedeVerOrdenes: boolean
   puedeVerInventario: boolean
+  puedeVerDashboard: boolean
 }) {
   const { estado, plan, puedeLeer, puedeEscribir, cerrarSesion } = useAuth()
   const [saliendo, setSaliendo] = useState(false)
@@ -67,7 +68,7 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario }: {
               )}
               {puedeLeer && (
                 <>
-                  {puedeEscribir && (
+                  {puedeVerDashboard && (
                     <NavLink className="enlace-nav" to="/dashboard"><span className="icono-nav"><Icono nombre="grafico" /></span>Dashboard gerencial</NavLink>
                   )}
                   <NavLink className="enlace-nav" to="/equipos"><span className="icono-nav"><Icono nombre="equipo" /></span>Equipos</NavLink>
@@ -142,6 +143,7 @@ function Sistema() {
   const rol = estado.tipo === 'activa' ? estado.usuario.rol : null
   const puedeVerOrdenes = rol === 'TECNICO' || puedeEscribir
   const puedeVerInventario = rol === 'BODEGA' || rol === 'JEFATURA'
+  const puedeVerDashboard = puedeEscribir && plan === 'EMPRESA'
   let destinoInicio = '/equipos'
   if (rol === 'TECNICO') destinoInicio = '/ordenes'
   if (rol === 'BODEGA') destinoInicio = '/inventario'
@@ -153,14 +155,14 @@ function Sistema() {
       <Route path="/registro" element={estado.tipo === 'activa' && !puedeEscribir
         ? <Navigate to="/inicio" replace /> : <Registro />} />
       <Route element={<LayoutProtegido alSalir={() => setBorrador(null)} puedeVerOrdenes={puedeVerOrdenes}
-        puedeVerInventario={puedeVerInventario} />}>
+        puedeVerInventario={puedeVerInventario} puedeVerDashboard={puedeVerDashboard} />}>
         <Route path="/inicio" element={rol === 'TRABAJADOR'
           ? <InicioTrabajador />
           : <Navigate to={destinoInicio} replace />} />
-        <Route path="/dashboard" element={puedeEscribir ? <DashboardGerencial key={usuarioId} /> : (
+        <Route path="/dashboard" element={puedeVerDashboard ? <DashboardGerencial key={usuarioId} /> : (
           <section className="panel estado-pagina">
             <h1>Acceso restringido</h1>
-            <p>El dashboard gerencial está disponible para Supervisor y Jefatura.</p>
+            <p>El dashboard gerencial está disponible para Supervisor y Jefatura del Plan Empresa.</p>
           </section>
         )} />
         <Route path="/suscripcion" element={rol === 'JEFATURA' ? <MiSuscripcion key={usuarioId} /> : (

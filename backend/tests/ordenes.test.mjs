@@ -344,3 +344,32 @@ test('Los cierres históricos conservan sus datos previos sin crear consumos nue
   assert.deepEqual(repetido.body, detalle.body);
   assert.equal(f.datos.db.prepare('SELECT count(*) AS n FROM movimientos_repuestos').get().n, 0);
 });
+
+test('El diagnóstico depende del plan al cerrar y los reintentos preservan los cierres existentes', async t => {
+  const f = await fixture(t);
+  const empresa = await crearOrden(f);
+  const particular = await crearOrden(f);
+  const basico = { solucion: cierre.solucion, duracion_minutos: cierre.duracion_minutos };
+  const cambiarPlan = plan => f.datos.db.prepare('UPDATE tenants SET plan = ? WHERE id = 1').run(plan);
+  const put = ({ ruta, tecnico }, datos) => f.api.put(ruta + '/cierre').set('Authorization', tecnico).send(datos);
+  for (const { ruta, tecnico } of [empresa, particular]) {
+    await f.api.patch(ruta + '/estado').set('Authorization', tecnico).send({ estado: 'EN_PROGRESO' }).expect(200);
+  }
+
+  assert.equal((await put(empresa, basico).expect(400)).body.codigo, 'DATOS_INVALIDOS');
+  const cerradaEmpresa = (await put(empresa, cierre).expect(200)).body;
+  cambiarPlan('PARTICULAR');
+  assert.deepEqual((await put(empresa, cierre).expect(200)).body, cerradaEmpresa);
+  assert.equal((await put(particular, cierre).expect(403)).body.codigo, 'PLAN_EMPRESA_REQUERIDO');
+  assert.equal((await f.api.get(particular.ruta).set('Authorization', particular.admin).expect(200)).body.estado, 'EN_PROGRESO');
+  const cerradaParticular = (await put(particular, basico).expect(200)).body;
+  assert(esquema('ordenes', 'OrdenDetalleRespuesta')(cerradaParticular));
+  assert.equal(cerradaParticular.intervencion.diagnostico, null);
+  assert.equal(f.datos.db.prepare('SELECT diagnostico FROM intervenciones WHERE orden_id = ?').get(particular.id).diagnostico, null);
+
+  const historial = (await f.api.get(`/equipos/${f.equipo.id}/historial`).set('Authorization', empresa.admin).expect(200)).body;
+  assert.equal(historial.items.find(item => item.orden.id === empresa.id).intervencion.diagnostico, cierre.diagnostico);
+  assert.equal(historial.items.find(item => item.orden.id === particular.id).intervencion.diagnostico, null);
+  cambiarPlan('EMPRESA');
+  assert.deepEqual((await put(particular, basico).expect(200)).body, cerradaParticular);
+});

@@ -10,7 +10,7 @@ import { Sedes } from './sedes.js';
 import { Suscripciones } from './suscripciones.js';
 import { IntegracionesERP } from './integraciones-erp.js';
 import { Preventivos } from './preventivos.js';
-import { migrarPreventivos } from './tenants.js';
+import { migrarDiagnosticoOpcional, migrarPreventivos } from './tenants.js';
 import { HistorialEquipos } from './historial-equipos.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
@@ -69,6 +69,7 @@ export async function crearAplicacion(options: Options) {
   const sedes = new Sedes(datos);
   datos.migrarTenantsOperativos();
   migrarPreventivos(datos.db);
+  migrarDiagnosticoOpcional(datos.db);
   const preventivos = new Preventivos(datos, ordenes);
   const dashboard = new Dashboard(datos);
   const suscripciones = new Suscripciones(datos, options.pagosSimulados === true);
@@ -510,6 +511,9 @@ export async function crearAplicacion(options: Options) {
     const { rol, plan } = (res.locals as Context).usuario;
     if (!administrar(rol)) {
       throw new ErrorAPI(403, 'SIN_PERMISO', 'Solo Supervisor y Jefatura pueden consultar el dashboard.');
+    }
+    if (plan !== 'EMPRESA') {
+      throw new ErrorAPI(403, 'PLAN_EMPRESA_REQUERIDO', 'El dashboard gerencial está disponible en el plan Empresa.');
     }
     if (Object.keys(req.query).some(clave => clave !== 'sede_id')) {
       throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'El dashboard solo admite el filtro sede_id.');

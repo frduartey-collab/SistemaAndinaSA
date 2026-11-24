@@ -93,22 +93,37 @@ test('Separación por sesión: usuarios, catálogos, fallas, órdenes, repuestos
     .expect(res => assert.equal(res.body.tenant_id,b.usuario.tenant_id));
 });
 
-test('Particular aplica el cupo de 50 vigentes atómicamente y la baja libera un cupo', async t => {
+test('Particular aplica el cupo de 15 vigentes atómicamente y la baja libera un cupo', async t => {
   const f = await preparar(t);
   const b = await f.alta('22222222-2', 'Cliente con cupo');
-  for (let n = 1; n <= 49; n++) {
+  for (let n = 1; n <= 14; n++) {
     await f.api.post('/activos').set('Authorization', b.token).send(equipo('EQ-' + String(n).padStart(4,'0'))).expect(201);
   }
   const respuestas = await Promise.all([
-    f.api.post('/equipos').set('Authorization', b.token).send(equipo('EQ-0050')),
-    f.api.post('/activos').set('Authorization', b.token).send(equipo('EQ-0051')),
+    f.api.post('/equipos').set('Authorization', b.token).send(equipo('EQ-0015')),
+    f.api.post('/activos').set('Authorization', b.token).send(equipo('EQ-0016')),
   ]);
   assert.deepEqual(respuestas.map(r => r.status).sort(), [201, 403]);
   assert.equal(respuestas.find(r => r.status === 403).body.codigo, 'CUPO_EQUIPOS_ALCANZADO');
-  assert.equal((await f.api.get('/activos').set('Authorization', b.token).expect(200)).body.total, 50);
+  assert.equal((await f.api.get('/activos').set('Authorization', b.token).expect(200)).body.total, 15);
   await f.api.delete('/activos/' + respuestas.find(r => r.status === 201).body.id).set('Authorization', b.token).expect(204);
-  await f.api.post('/activos').set('Authorization', b.token).send(equipo('EQ-0052')).expect(201);
-  await f.api.post('/activos').set('Authorization', f.empresa.token).send(equipo('EQ-0051')).expect(201);
+  await f.api.post('/activos').set('Authorization', b.token).send(equipo('EQ-0017')).expect(201);
+  const vigentesEmpresa = [];
+  for (let n = 1; n <= 16; n++) {
+    const { body } = await f.api.post('/activos').set('Authorization', f.empresa.token)
+      .send(equipo('EQ-' + String(n).padStart(4, '0'))).expect(201);
+    vigentesEmpresa.push(body.id);
+  }
+  f.datos.db.prepare("UPDATE tenants SET plan = 'PARTICULAR' WHERE id = ?").run(f.empresa.usuario.tenant_id);
+  const propios = await f.api.get('/activos').set('Authorization', f.empresa.token).expect(200);
+  assert.equal(propios.body.total, 16);
+  assert.deepEqual(propios.body.items.map(activo => activo.id).sort(), [...vigentesEmpresa].sort());
+  const intentarAlta = () => f.api.post('/activos').set('Authorization', f.empresa.token).send(equipo('EQ-0017'));
+  await intentarAlta().expect(403);
+  await f.api.delete('/activos/' + vigentesEmpresa[0]).set('Authorization', f.empresa.token).expect(204);
+  await intentarAlta().expect(403);
+  await f.api.delete('/activos/' + vigentesEmpresa[1]).set('Authorization', f.empresa.token).expect(204);
+  await intentarAlta().expect(201);
 });
 
 test('Empresa administra sedes por cliente y solo puede asignar sedes propias', async t => {

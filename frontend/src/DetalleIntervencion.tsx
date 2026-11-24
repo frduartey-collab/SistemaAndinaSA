@@ -92,10 +92,12 @@ function Resumen({ orden }: { orden: OrdenDetalleRespuesta }) {
             <dt>Duración</dt>
             <dd>{intervencion.duracion_minutos} {intervencion.duracion_minutos === 1 ? 'minuto' : 'minutos'}</dd>
           </div>
-          <div className="intervencion-texto">
-            <dt>Diagnóstico</dt>
-            <dd>{intervencion.diagnostico}</dd>
-          </div>
+          {intervencion.diagnostico && (
+            <div className="intervencion-texto">
+              <dt>Diagnóstico</dt>
+              <dd>{intervencion.diagnostico}</dd>
+            </div>
+          )}
           <div className="intervencion-texto">
             <dt>Solución</dt>
             <dd>{intervencion.solucion}</dd>

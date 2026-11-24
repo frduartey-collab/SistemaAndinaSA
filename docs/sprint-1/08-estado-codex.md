@@ -160,3 +160,11 @@ Jefatura de Empresa asigna sedes a los usuarios desde Sedes y Sucursales. Un usu
 En Integración ERP, Jefatura de Empresa genera o rota su clave, configura la URL HTTPS del webhook y activa la integración. La clave completa se entrega únicamente al generarla. El ERP envía `X-API-Key` a `GET /api/v1/erp/costos-repuestos` y `POST /api/v1/erp/sync-stock`. Los costos se toman del costo unitario en CLP registrado en Inventario. El costo queda sin valor cuando falta registrarlo. La sincronización aplica lotes de hasta 100 repuestos y registra los movimientos en una sola transacción. Repetir la referencia con los mismos datos devuelve el recibo original. Esta entrega guarda la configuración del webhook ERP y expone la API de consulta y sincronización.
 
 Verificación de los cuatro módulos finales. Compilaron el backend y el frontend. Pasaron 90 pruebas de backend y se validaron 51 operaciones OpenAPI. En Chromium se probaron los planes y órdenes preventivas, los indicadores y permisos, el flujo móvil de pago simulado y cancelación, la asignación y filtración por sede y la autenticación ERP. La migración ensayada conservó los registros de 15 tablas existentes y no produjo errores de referencias.
+
+## Alcance vigente del plan Particular
+
+Particular admite hasta 15 equipos vigentes. El cupo se aplica en los dos endpoints de creación. Si la organización ya tiene 15 equipos o más, conserva el catálogo existente y puede dar equipos de baja antes de volver a crear. La landing y el formulario muestran el nuevo límite.
+
+El dashboard queda disponible para Supervisor y Jefatura de Empresa. Particular no ve la opción en el menú y recibe 403 si consulta las métricas directamente. Al cerrar una orden en Particular, el técnico registra la solución, la duración y los repuestos. La API guarda el diagnóstico como nulo y conserva los diagnósticos históricos. Empresa mantiene el diagnóstico obligatorio en los nuevos cierres.
+
+Verificación. Compilaron backend y frontend, pasaron 91 pruebas de backend y se validaron 51 operaciones OpenAPI. Chromium comprobó las vistas y el cierre sin diagnóstico de Particular y los accesos de Empresa. El ensayo de migración conservó los registros de 20 tablas y sus referencias.

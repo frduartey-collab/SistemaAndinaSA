@@ -8,7 +8,7 @@ paths:
       operationId: consultarMetricasGerenciales
       summary: Consultar indicadores de mantenimiento del cliente
       description: |
-        Supervisor y Jefatura. Incluye todo el historial. Vencida es una orden abierta
+        Supervisor y Jefatura de clientes con plan Empresa. Incluye todo el historial. Vencida es una orden abierta
         con fecha límite anterior al día de Chile. El MTTR promedia la duración registrada
         de las reparaciones correctivas cerradas. Cumplimiento mide el porcentaje de
         preventivas cerradas en fecha sobre las que ya vencieron o se han cerrado.
@@ -28,7 +28,11 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
-        "403": { $ref: "#/components/responses/Error" }
+        "403":
+          description: SIN_PERMISO o PLAN_EMPRESA_REQUERIDO.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
 components:
   securitySchemes:
     bearerAuth:

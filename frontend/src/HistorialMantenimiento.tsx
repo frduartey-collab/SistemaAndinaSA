@@ -141,7 +141,9 @@ function Registro({ datos }: { datos: RegistroHistorialEquipo }) {
           <dl className="datos-detalle historial-datos">
             <div><dt>Fecha de registro</dt><dd><FechaRegistrada fecha={intervencion.registrada_en} /></dd></div>
             <div><dt>Duración</dt><dd>{intervencion.duracion_minutos} min</dd></div>
-            <div className="intervencion-texto"><dt>Diagnóstico</dt><dd>{intervencion.diagnostico}</dd></div>
+            {intervencion.diagnostico && (
+              <div className="intervencion-texto"><dt>Diagnóstico</dt><dd>{intervencion.diagnostico}</dd></div>
+            )}
             <div className="intervencion-texto"><dt>Solución</dt><dd>{intervencion.solucion}</dd></div>
             <div className="intervencion-texto">
               <dt>Repuestos consumidos</dt>

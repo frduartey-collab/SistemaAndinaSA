@@ -285,3 +285,23 @@ export function migrarPreventivos(db: Database.Database): void {
     `);
   });
 }
+
+/** Permite registrar cierres sin diagnóstico conservando las restricciones previas. */
+export function migrarDiagnosticoOpcional(db: Database.Database): void {
+  migrar(db, 6, () => {
+    const definicion = db.prepare<[], { sql: string }>(`
+      SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'intervenciones'
+    `).get()!.sql;
+    const esquema = definicion.slice(definicion.indexOf('(') + 1, definicion.lastIndexOf(')'));
+    const sinObligatoriedad = esquema.replace(/(\bdiagnostico\s+TEXT)\s+NOT\s+NULL\b/i, '$1');
+    if (sinObligatoriedad === esquema) {
+      const columna = db.prepare<[], { obligatorio: number }>(`
+        SELECT "notnull" AS obligatorio FROM pragma_table_info('intervenciones') WHERE name = 'diagnostico'
+      `).get();
+      if (columna?.obligatorio === 0) return;
+      throw new Error('No se pudo migrar el diagnóstico de las intervenciones.');
+    }
+    reconstruirTabla(db, 'intervenciones', sinObligatoriedad,
+      ['orden_id', 'autor_id', 'diagnostico', 'solucion', 'duracion_minutos', 'repuestos_usados', 'registrada_en', 'tenant_id']);
+  });
+}

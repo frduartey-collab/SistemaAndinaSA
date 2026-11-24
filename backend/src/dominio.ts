@@ -198,7 +198,7 @@ export interface OrdenCrearSolicitud {
 export interface OrdenEstadoSolicitud { estado: 'EN_PROGRESO' }
 
 export interface OrdenCierreSolicitud {
-  diagnostico: string;
+  diagnostico?: string;
   solucion: string;
   duracion_minutos: number;
   repuestos_usados?: string;
@@ -208,7 +208,7 @@ export interface OrdenCierreSolicitud {
 export interface IntervencionRespuesta {
   orden_id: number;
   autor_id: number;
-  diagnostico: string;
+  diagnostico: string | null;
   solucion: string;
   duracion_minutos: number;
   repuestos_usados: string | null;

@@ -77,7 +77,7 @@ test('La migración conserva IDs y datos legados, incluso al reabrir SQLite', t 
   }
 });
 
-test('El plan Particular tiene cupo de 50 vigentes y las sedes requieren Empresa', () => {
+test('El plan Particular tiene cupo de 15 vigentes y las sedes requieren Empresa', () => {
   const datos = new Datos();
   try {
     const particular = datos.crearTenant('Taller', 'PARTICULAR', AHORA);
@@ -87,7 +87,7 @@ test('El plan Particular tiene cupo de 50 vigentes y las sedes requieren Empresa
     datos.enTenant(particular.id, () => {
       const actor = datos.crearUsuario({ rut: '22222222-2', nombre: 'Jefatura', rol: 'JEFATURA', activo: true, passwordHash: 'hash' });
       assert.throws(() => datos.crear({ ...activo, sede_id: sede }, actor.id, AHORA), { codigo: 'PLAN_EMPRESA_REQUERIDO' });
-      const registros = Array.from({ length: 50 }, (_, i) => datos.crear(
+      const registros = Array.from({ length: 15 }, (_, i) => datos.crear(
         { ...activo, codigo: 'EQ-' + String(i).padStart(4, '0') }, actor.id, AHORA,
       ));
       assert.throws(() => datos.crear(activo, actor.id, AHORA), { codigo: 'CUPO_EQUIPOS_ALCANZADO' });

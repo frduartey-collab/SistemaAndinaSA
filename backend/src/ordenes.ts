@@ -234,7 +234,7 @@ export class OrdenesTrabajo {
   }
 
   cerrar(id: number, input: OrdenCierreSolicitud, tecnicoId: number, ahora: number): OrdenDetalleRespuesta {
-    const diagnostico = input.diagnostico.trim();
+    const diagnostico = input.diagnostico?.trim() ?? null;
     const solucion = input.solucion.trim();
     const repuestos = input.repuestos_usados?.trim() || null;
     const consumos = [...(input.repuestos_consumidos ?? [])].sort((a, b) => a.repuesto_id - b.repuesto_id);
@@ -255,6 +255,14 @@ export class OrdenesTrabajo {
       }
       if (orden.estado !== 'EN_PROGRESO') {
         throw new ErrorAPI(409, 'TRANSICION_ORDEN_INVALIDA', 'Solo se puede cerrar una orden en progreso.');
+      }
+
+      const plan = this.datos.tenantPorId(this.datos.tenantId)?.plan;
+      if (plan !== 'EMPRESA' && diagnostico !== null) {
+        throw new ErrorAPI(403, 'PLAN_EMPRESA_REQUERIDO', 'Registrar un diagnóstico requiere el plan Empresa.');
+      }
+      if (plan === 'EMPRESA' && !diagnostico) {
+        throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'Escribe el diagnóstico de la intervención.');
       }
 
       const intervencion: FilaIntervencion = {

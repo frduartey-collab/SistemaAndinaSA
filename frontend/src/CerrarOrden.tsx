@@ -16,7 +16,7 @@ type Props = {
 }
 
 export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: Props) {
-  const { estado, solicitar } = useAuth()
+  const { estado, plan, solicitar } = useAuth()
   const campos = useId()
   const [diagnostico, setDiagnostico] = useState('')
   const [solucion, setSolucion] = useState('')
@@ -30,6 +30,7 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
 
   const puedeCerrar = estado.tipo === 'activa' && estado.usuario.rol === 'TECNICO' &&
     estado.usuario.id === orden.tecnico_id && orden.estado === 'EN_PROGRESO'
+  const puedeRegistrarDiagnostico = plan === 'EMPRESA'
   const grupoConsumos = campos + '-consumo'
   const cantidadesInvalidas = consumos
     .filter(({ cantidad }) => !Number.isSafeInteger(Number(cantidad)) || Number(cantidad) < 1)
@@ -44,7 +45,7 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
     const minutos = Number(duracion)
     const invalidos: typeof errores = {}
 
-    if (!textoDiagnostico) invalidos.diagnostico = 'Escribe el diagnóstico de la falla.'
+    if (puedeRegistrarDiagnostico && !textoDiagnostico) invalidos.diagnostico = 'Escribe el diagnóstico de la falla.'
     if (!textoSolucion) invalidos.solucion = 'Describe la solución que aplicaste.'
     if (!Number.isSafeInteger(minutos) || minutos <= 0) {
       invalidos.duracion_minutos = 'Ingresa un número entero de minutos mayor que cero.'
@@ -66,7 +67,7 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
     enviando.current = true
     setGuardando(true)
     const datos: OrdenCierreSolicitud = {
-      diagnostico: textoDiagnostico,
+      ...(puedeRegistrarDiagnostico ? { diagnostico: textoDiagnostico } : {}),
       solucion: textoSolucion,
       duracion_minutos: minutos,
       repuestos_consumidos: consumos.map(({ repuesto, cantidad }) => ({
@@ -100,14 +101,16 @@ export function CerrarOrden({ orden, alCerrar, alGuardar, alEncontrarCerrada }: 
       <form className="formulario-intervencion" noValidate aria-busy={guardando} onSubmit={guardar}>
         <fieldset className="campos-orden" disabled={guardando || !puedeCerrar}>
           <legend className="solo-lectores">Datos de la intervención</legend>
-          <div className="campo">
-            <label htmlFor={campos + '-diagnostico'}>Diagnóstico</label>
-            <textarea id={campos + '-diagnostico'} required rows={3} maxLength={LIMITE_TEXTO}
-              value={diagnostico} onChange={(evento) => setDiagnostico(evento.target.value)}
-              aria-invalid={Boolean(errores.diagnostico)}
-              aria-describedby={errores.diagnostico ? campos + '-error-diagnostico' : undefined} />
-            {errores.diagnostico && <p id={campos + '-error-diagnostico'} className="error-campo" role="alert">{errores.diagnostico}</p>}
-          </div>
+          {puedeRegistrarDiagnostico && (
+            <div className="campo">
+              <label htmlFor={campos + '-diagnostico'}>Diagnóstico</label>
+              <textarea id={campos + '-diagnostico'} required rows={3} maxLength={LIMITE_TEXTO}
+                value={diagnostico} onChange={(evento) => setDiagnostico(evento.target.value)}
+                aria-invalid={Boolean(errores.diagnostico)}
+                aria-describedby={errores.diagnostico ? campos + '-error-diagnostico' : undefined} />
+              {errores.diagnostico && <p id={campos + '-error-diagnostico'} className="error-campo" role="alert">{errores.diagnostico}</p>}
+            </div>
+          )}
           <div className="campo">
             <label htmlFor={campos + '-solucion'}>Solución</label>
             <textarea id={campos + '-solucion'} required rows={3} maxLength={LIMITE_TEXTO}

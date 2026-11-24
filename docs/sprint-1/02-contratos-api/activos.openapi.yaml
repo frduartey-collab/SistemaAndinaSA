@@ -90,7 +90,7 @@ paths:
       operationId: crearActivo
       summary: Crear activo (SUPERVISOR o JEFATURA)
       description: |
-        En Particular se permiten hasta 50 equipos vigentes por cliente. Una sede
+        En Particular se permiten hasta 15 equipos vigentes por cliente. Una sede
         opcional requiere Empresa y debe pertenecer al mismo cliente.
       requestBody: &cuerpoCrearActivo
         required: true
@@ -325,7 +325,7 @@ components:
       additionalProperties: false
       required: [diagnostico, solucion, duracion_minutos, registrada_en, repuestos_usados, repuestos_consumidos]
       properties:
-        diagnostico: { type: string, minLength: 1, maxLength: 2000 }
+        diagnostico: { type: [string, "null"], minLength: 1, maxLength: 2000 }
         solucion: { type: string, minLength: 1, maxLength: 2000 }
         duracion_minutos: { $ref: "#/components/schemas/IdHistorial" }
         registrada_en: { $ref: "#/components/schemas/FechaActividad" }

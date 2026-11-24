@@ -11,6 +11,7 @@ import { migrarTenantsBase, migrarTenantsOperativos, migrarSedesUsuarios, TENANT
 export interface UsuarioRegistro extends UsuarioSesion { passwordHash: string }
 type UsuarioNuevo = Pick<UsuarioRegistro, 'rut' | 'nombre' | 'rol' | 'activo' | 'passwordHash'>;
 type Row = Record<string, unknown>;
+const CUPO_EQUIPOS_PARTICULAR = 15;
 const SELECCION_USUARIO = 'SELECT u.*, t.plan FROM usuarios u JOIN tenants t ON t.id = u.tenant_id';
 
 function usuario(row: Row): UsuarioRegistro {
@@ -253,8 +254,9 @@ export class Datos {
         const { total } = this.db.prepare<[number], { total: number }>(
           'SELECT count(*) AS total FROM activos WHERE tenant_id=? AND deleted_at IS NULL',
         ).get(this.tenantId)!;
-        if (total >= 50) {
-          throw new ErrorAPI(403, 'CUPO_EQUIPOS_ALCANZADO', 'El plan Particular admite hasta 50 equipos vigentes.');
+        if (total >= CUPO_EQUIPOS_PARTICULAR) {
+          throw new ErrorAPI(403, 'CUPO_EQUIPOS_ALCANZADO',
+            `El plan Particular admite hasta ${CUPO_EQUIPOS_PARTICULAR} equipos vigentes.`);
         }
       }
       const result = this.db.prepare<unknown[], Row>(`INSERT INTO activos(codigo,nombre,marca,modelo,ubicacion,criticidad,

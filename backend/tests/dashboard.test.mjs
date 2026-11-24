@@ -20,7 +20,7 @@ test('Dashboard aísla clientes, conserva ceros y calcula indicadores de interve
   const alta = (rut, rol) => datos.crearUsuario({ rut, rol, nombre: rol, activo: true, passwordHash });
   const responsable = alta('11111111-1', 'JEFATURA');
   const tecnico = alta('22222222-2', 'TECNICO');
-  const ajeno = datos.crearTenant('Otra planta', 'PARTICULAR', ahora);
+  const ajeno = datos.crearTenant('Otra planta', 'EMPRESA', ahora);
   datos.enTenant(ajeno.id, () => alta('33333333-3', 'JEFATURA'));
   const entrar = async rut => 'Bearer ' + (await api.post('/auth/login').send({rut,password}).expect(200)).body.token;
   const admin = await entrar(responsable.rut);
@@ -112,5 +112,8 @@ test('Empresa consolida y filtra por sede respetando el alcance vigente de Super
   const limitado = (await api.get('/dashboard/metricas').set(delegado).expect(200)).body;
   assert.deepEqual(limitado, filtrado);
   await api.get('/dashboard/metricas').query({ sede_id: sur.id }).set(delegado).expect(404);
-  await api.get('/dashboard/metricas').query({ sede_id: norte.id }).set(fuera).expect(403);
+  for (const query of [{}, { sede_id: norte.id }]) {
+    const bloqueado = await api.get('/dashboard/metricas').query(query).set(fuera).expect(403);
+    assert.equal(bloqueado.body.codigo, 'PLAN_EMPRESA_REQUERIDO');
+  }
 });
