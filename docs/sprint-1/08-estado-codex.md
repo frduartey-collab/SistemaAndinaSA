@@ -172,3 +172,7 @@ Verificación. Compilaron backend y frontend, pasaron 91 pruebas de backend y se
 ## Fotografías en órdenes de trabajo
 
 Las órdenes correctivas muestran las fotografías del reporte asociado desde su detalle y después del cierre. El técnico asignado, Supervisor y Jefatura pueden consultarlas dentro del alcance de la orden. La prueba de integración comprueba los permisos, la descarga y la conservación de las fotos tras el cierre.
+
+## Modo oscuro e identidad visual
+
+SIGEM ofrece tema claro y oscuro en la portada, el acceso, el registro y las vistas con sesión. El botón de sol o luna cambia el tema y guarda la elección en el navegador. Desde Ajustes de interfaz también se puede volver a seguir el tema del dispositivo. La marca, el favicon y los colores de navegación se adaptan al tema. Los iconos de instalación usan el nuevo isotipo.

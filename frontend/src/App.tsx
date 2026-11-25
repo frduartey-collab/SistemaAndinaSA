@@ -1,5 +1,6 @@
 import { Icono } from './Icono'
 import { MarcaSigem } from './MarcaSigem'
+import { BotonTema } from './TemaInterfaz'
 import { useState } from 'react'
 import { AjustesInterfaz } from './AjustesInterfaz'
 import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from 'react-router'
@@ -104,6 +105,7 @@ function LayoutProtegido({ alSalir, puedeVerOrdenes, puedeVerInventario, puedeVe
               <strong>{estado.usuario.nombre}</strong>
               <p className="rol">{etiquetasRol[estado.usuario.rol]}{puedeLeer && !puedeEscribir ? ' · Equipos: solo lectura' : ''}</p>
             </div>
+            <BotonTema />
             <AjustesInterfaz />
             <button className="boton boton-secundario" type="button" onClick={salir} disabled={saliendo}>
               <Icono nombre="salir" />

@@ -1,5 +1,6 @@
 import { Icono } from './Icono'
 import { MarcaSigem } from './MarcaSigem'
+import { BotonTema } from './TemaInterfaz'
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import type { RegistroSolicitud, Rol, UsuarioSesion } from '../../backend/src/dominio'
@@ -109,7 +110,10 @@ export function Registro() {
   return (
     <main className="pantalla-login">
       <div className="presentacion">
-        <MarcaSigem />
+        <div className="acciones-tema-publica">
+          <MarcaSigem />
+          <BotonTema />
+        </div>
         <p className="titulo-presentacion">Sistema Gestor de Mantenimiento</p>
       </div>
       <section className="panel-login" aria-labelledby="titulo-registro">

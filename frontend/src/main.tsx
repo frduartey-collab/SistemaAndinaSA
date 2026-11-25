@@ -3,13 +3,16 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import App from './App'
 import { AuthProvider } from './AuthProvider'
+import { TemaInterfaz } from './TemaInterfaz'
 import './estilos.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <TemaInterfaz>
+          <App />
+        </TemaInterfaz>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

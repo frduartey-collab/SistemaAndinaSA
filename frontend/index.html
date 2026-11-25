@@ -3,11 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b3354" />
+    <meta name="theme-color" content="#f1f5f9" />
     <meta name="description" content="SIGEM, Sistema Gestor de Mantenimiento de Manufacturas Andina." />
     <link rel="icon" type="image/svg+xml" href="/identidad/sigem.svg" />
     <link rel="apple-touch-icon" href="/identidad/sigem-180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      try {
+        const tema = localStorage.getItem('sigem.tema')
+        if (tema === 'claro' || tema === 'oscuro') document.documentElement.dataset.sigemTema = tema
+      } catch {}
+    </script>
     <title>SIGEM | Sistema Gestor de Mantenimiento</title>
   </head>
   <body>

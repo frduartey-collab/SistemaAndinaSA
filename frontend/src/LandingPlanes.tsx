@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext'
 import { Dialogo } from './Dialogo'
 import { Icono } from './Icono'
 import { MarcaSigem } from './MarcaSigem'
+import { BotonTema } from './TemaInterfaz'
 import { PLANES, PESOS, rutaConPlan } from './planes'
 
 const planes = [
@@ -39,9 +40,12 @@ export function LandingPlanes() {
       <header className="planes-cabecera">
         <div className="planes-ancho">
           <MarcaSigem />
-          <Link className="boton boton-secundario" to={usuario ? '/inicio' : '/login'}>
-            <Icono nombre="entrar" />{usuario ? 'Ingresar a SIGEM' : 'Iniciar sesión'}
-          </Link>
+          <div className="acciones-tema-publica">
+            <BotonTema />
+            <Link className="boton boton-secundario" to={usuario ? '/inicio' : '/login'}>
+              <Icono nombre="entrar" />{usuario ? 'Ingresar a SIGEM' : 'Iniciar sesión'}
+            </Link>
+          </div>
         </div>
       </header>
       <main className="planes-ancho planes-contenido" id="planes">
