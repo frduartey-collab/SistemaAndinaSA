@@ -229,6 +229,7 @@ export interface OrdenRespuesta extends Omit<OrdenCrearSolicitud, 'falla_id'> {
 }
 
 export interface OrdenDetalleRespuesta extends OrdenRespuesta {
+  fotos: FotoFallaResumen[];
   intervencion: IntervencionRespuesta | null;
 }
 

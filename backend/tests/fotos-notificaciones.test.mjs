@@ -155,3 +155,33 @@ test('Un fallo al generar avisos revierte la falla y sus fotografías', async t 
   f.datos.db.exec('DROP TRIGGER fallar_avisos');
   await f.api.post('/fallas').set('Authorization', autor).send({ ...f.reporte, fotos: [foto] }).expect(201);
 });
+
+test('El técnico asignado puede ver la evidencia de la falla desde su orden', async t => {
+  const f = await preparar(t);
+  const tecnico = await f.token('autor');
+  const trabajador = await f.token('ajeno');
+  const supervisor = await f.token('supervisor');
+  const { body: falla } = await f.api.post('/fallas').set('Authorization', trabajador)
+    .send({ ...f.reporte, fotos: [foto] }).expect(201);
+  const { body: otraFalla } = await f.api.post('/fallas').set('Authorization', trabajador)
+    .send({ ...f.reporte, fotos: [foto] }).expect(201);
+  const detalleOtra = await f.api.get('/fallas/' + otraFalla.id).set('Authorization', trabajador).expect(200);
+  const { body: orden } = await f.api.post('/ordenes').set('Authorization', supervisor)
+    .send({ falla_id: falla.id, tecnico_id: f.usuarios.autor.id, fecha_limite: '2026-11-20' }).expect(201);
+  const ruta = '/ordenes/' + orden.id;
+  const { body: detalle } = await f.api.get(ruta).set('Authorization', tecnico).expect(200);
+  assert(esquema('ordenes', 'OrdenDetalleRespuesta')(detalle));
+  assert.equal(detalle.fotos.length, 1);
+  assert.equal(detalle.fotos[0].nombre, foto.nombre);
+  const rutaFoto = ruta + '/fotos/' + detalle.fotos[0].id;
+  await f.api.get('/fallas/' + falla.id).set('Authorization', tecnico).expect(404);
+  await f.api.get(rutaFoto).set('Authorization', trabajador).expect(403);
+  await f.api.get(ruta + '/fotos/' + detalleOtra.body.fotos[0].id).set('Authorization', tecnico).expect(404);
+  const descarga = await f.api.get(rutaFoto).set('Authorization', tecnico)
+    .buffer(true).parse(leerBinario).expect(200).expect('Content-Type', 'image/png');
+  assert.deepEqual(descarga.body, Buffer.from(png, 'base64'));
+  await f.api.patch(ruta + '/estado').set('Authorization', tecnico).send({ estado: 'EN_PROGRESO' }).expect(200);
+  const { body: cerrada } = await f.api.put(ruta + '/cierre').set('Authorization', tecnico)
+    .send({ diagnostico: 'Sello dañado', solucion: 'Cambio de sello', duracion_minutos: 20 }).expect(200);
+  assert.deepEqual(cerrada.fotos, detalle.fotos);
+});

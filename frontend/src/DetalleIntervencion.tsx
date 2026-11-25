@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { OrdenDetalleRespuesta } from '../../backend/src/dominio'
 import { useAuth } from './AuthContext'
 import { Dialogo } from './Dialogo'
+import { GaleriaFotos } from './GaleriaFotos'
 import { Icono } from './Icono'
 import { mensajeError } from './api'
 
@@ -39,17 +40,20 @@ export function DetalleIntervencion({ id, ordenInicial, aviso, alCerrar }: Props
       })
       .catch((fallo: unknown) => {
         if (!signal.aborted) setCarga({
-          tipo: 'error', mensaje: mensajeError(fallo, 'No se pudo cargar la intervención.'),
+          tipo: 'error', mensaje: mensajeError(fallo, 'No se pudo cargar la orden.'),
         })
       })
 
     return () => controlador.abort()
   }, [id, intento, ordenInicial, solicitar])
 
+  const titulo = carga.tipo === 'lista' && carga.orden.estado === 'CERRADA'
+    ? 'Intervención · Orden #' + id : 'Detalle de la orden #' + id
+
   return (
-    <Dialogo titulo={'Intervención · Orden #' + id} amplio alCerrar={alCerrar}>
+    <Dialogo titulo={titulo} amplio alCerrar={alCerrar}>
       {aviso && <p className="aviso" role="status">{aviso}</p>}
-      {carga.tipo === 'cargando' && <p role="status">Cargando intervención…</p>}
+      {carga.tipo === 'cargando' && <p role="status">Cargando orden…</p>}
       {carga.tipo === 'error' && (
         <div className="aviso aviso-error">
           <p role="alert">{carga.mensaje}</p>
@@ -78,6 +82,9 @@ function Resumen({ orden }: { orden: OrdenDetalleRespuesta }) {
           <span className="insignia orden-cerrada"><Icono nombre="completar" />Cerrada</span>
         )}
       </div>
+      {orden.falla_id !== null && (
+        <GaleriaFotos recurso="ordenes" id={orden.id} fotos={orden.fotos} titulo="Fotografías de la falla" />
+      )}
       {intervencion ? (
         <dl className="datos-detalle intervencion-datos">
           <div>

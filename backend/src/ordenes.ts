@@ -5,6 +5,7 @@ import type {
   PaginaOrdenes, PaginaTecnicos, RepuestoConsumidoRespuesta, RepuestoConsumoSolicitud, TecnicoResumen,
 } from './dominio.js';
 import { ErrorAPI } from './errores.js';
+import { listarFotosFalla } from './fallas.js';
 import type { InventarioRepuestos } from './repuestos.js';
 
 type FilaIntervencion = Omit<IntervencionRespuesta, 'repuestos_consumidos'>;
@@ -227,10 +228,14 @@ export class OrdenesTrabajo {
   }
 
   detalle(id: number, tecnicoId?: number): OrdenDetalleRespuesta {
-    return this.datos.db.transaction(() => ({
-      ...this.obtener(id, tecnicoId),
-      intervencion: this.obtenerIntervencion(id),
-    }))();
+    return this.datos.db.transaction(() => {
+      const orden = this.obtener(id, tecnicoId);
+      return this.detalleConFotos(orden, this.obtenerIntervencion(id));
+    })();
+  }
+
+  fallaAsociada(id: number, tecnicoId?: number): number | null {
+    return this.obtener(id, tecnicoId).falla_id;
   }
 
   cerrar(id: number, input: OrdenCierreSolicitud, tecnicoId: number, ahora: number): OrdenDetalleRespuesta {
@@ -249,7 +254,7 @@ export class OrdenesTrabajo {
         if (intervencion?.diagnostico === diagnostico && intervencion.solucion === solucion
           && intervencion.duracion_minutos === input.duracion_minutos && intervencion.repuestos_usados === repuestos
           && mismoConsumo(intervencion.repuestos_consumidos, consumos)) {
-          return { ...orden, intervencion };
+          return this.detalleConFotos(orden, intervencion);
         }
         throw new ErrorAPI(409, 'ORDEN_YA_CERRADA', 'La orden ya está cerrada y su intervención no puede modificarse.');
       }
@@ -291,8 +296,15 @@ export class OrdenesTrabajo {
       this.datos.db.prepare("UPDATE ordenes_trabajo SET estado = 'CERRADA' WHERE tenant_id = ? AND id = ?")
         .run(this.datos.tenantId, id);
       this.datos.auditar(tecnicoId, 'ORDEN_CERRADA_CON_INTERVENCION', id, ahora);
-      return { ...orden, estado: 'CERRADA', intervencion: { ...intervencion, repuestos_consumidos: repuestosConsumidos } };
+      return this.detalleConFotos({ ...orden, estado: 'CERRADA' }, {
+        ...intervencion, repuestos_consumidos: repuestosConsumidos,
+      });
     });
+  }
+
+  private detalleConFotos(orden: OrdenRespuesta, intervencion: IntervencionRespuesta | null): OrdenDetalleRespuesta {
+    const fotos = orden.falla_id === null ? [] : listarFotosFalla(this.datos, orden.falla_id);
+    return { ...orden, intervencion, fotos };
   }
 
   private obtenerIntervencion(id: number): IntervencionRespuesta | null {

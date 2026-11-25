@@ -49,6 +49,12 @@ const SELECCION_FALLAS = `
   JOIN usuarios u ON u.id = f.usuario_id AND u.tenant_id = f.tenant_id
 `;
 
+export function listarFotosFalla(datos: Datos, fallaId: number): FotoFallaResumen[] {
+  return datos.db.prepare<[number, number], FotoFallaResumen>(
+    'SELECT id, nombre, tipo FROM fotos_falla WHERE tenant_id = ? AND falla_id = ? ORDER BY id',
+  ).all(datos.tenantId, fallaId);
+}
+
 export class Fallas {
   constructor(private readonly datos: Datos) {
     this.datos.db.exec(`
@@ -141,10 +147,7 @@ export class Fallas {
   detalle(id: number, usuarioId?: number): FallaDetalleRespuesta {
     return this.datos.db.transaction(() => {
       const falla = this.obtener(id, usuarioId);
-      const fotos = this.datos.db.prepare<[number, number], FotoFallaResumen>(
-        'SELECT id, nombre, tipo FROM fotos_falla WHERE tenant_id = ? AND falla_id = ? ORDER BY id',
-      ).all(this.datos.tenantId, id);
-      return { ...falla, fotos };
+      return { ...falla, fotos: listarFotosFalla(this.datos, id) };
     })();
   }
 

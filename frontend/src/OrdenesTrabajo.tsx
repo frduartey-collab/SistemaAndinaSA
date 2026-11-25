@@ -202,30 +202,31 @@ export function OrdenesTrabajo() {
                       {FORMATO_FECHA.format(new Date(orden.fecha_limite + 'T00:00:00Z'))}
                     </time></dd></div>
                   </dl>
-                  {orden.estado === 'PENDIENTE' && (
-                    <button className="boton boton-primario" type="button" aria-label={'Iniciar orden #' + orden.id}
-                      disabled={vista.tipo === 'cargando' || cambiando !== null}
-                      onClick={() => iniciarOrden(orden)}>
-                      <Icono nombre="iniciar" />
-                      {cambiando === orden.id ? 'Actualizando…' : 'Iniciar trabajo'}
-                    </button>
-                  )}
-                  {orden.estado === 'EN_PROGRESO' && esTecnico && usuario.id === orden.tecnico_id && (
-                    <button className="boton boton-secundario" type="button" aria-label={'Cerrar orden #' + orden.id}
-                      disabled={vista.tipo === 'cargando' || cambiando !== null}
-                      onClick={() => {
-                        setAviso('')
-                        setErrorCambio('')
-                        setDialogo({ tipo: 'cierre', orden })
-                      }}><Icono nombre="completar" />Cerrar orden</button>
-                  )}
-                  {orden.estado === 'CERRADA' && (
-                    <button className="boton boton-secundario" type="button" aria-label={'Ver intervención de la orden #' + orden.id}
+                  <div className="acciones-reporte">
+                    {orden.estado === 'PENDIENTE' && (
+                      <button className="boton boton-primario" type="button" aria-label={'Iniciar orden #' + orden.id}
+                        disabled={vista.tipo === 'cargando' || cambiando !== null}
+                        onClick={() => iniciarOrden(orden)}>
+                        <Icono nombre="iniciar" />
+                        {cambiando === orden.id ? 'Actualizando…' : 'Iniciar trabajo'}
+                      </button>
+                    )}
+                    {orden.estado === 'EN_PROGRESO' && esTecnico && usuario.id === orden.tecnico_id && (
+                      <button className="boton boton-secundario" type="button" aria-label={'Cerrar orden #' + orden.id}
+                        disabled={vista.tipo === 'cargando' || cambiando !== null}
+                        onClick={() => {
+                          setAviso('')
+                          setErrorCambio('')
+                          setDialogo({ tipo: 'cierre', orden })
+                        }}><Icono nombre="completar" />Cerrar orden</button>
+                    )}
+                    <button className="boton boton-secundario" type="button"
+                      aria-label={(orden.estado === 'CERRADA' ? 'Ver intervención de la orden #' : 'Ver detalle de la orden #') + orden.id}
                       disabled={vista.tipo === 'cargando' || cambiando !== null}
                       onClick={() => setDialogo({ tipo: 'detalle', id: orden.id })}>
-                      <Icono nombre="ver" />Ver intervención
+                      <Icono nombre="ver" />{orden.estado === 'CERRADA' ? 'Ver intervención' : 'Ver detalle'}
                     </button>
-                  )}
+                  </div>
                 </li>
               ))}
             </ul>

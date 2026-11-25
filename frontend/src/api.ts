@@ -25,7 +25,7 @@ export async function llamarApi<T>(
     | "/sedes" | `/sedes/${number}`
     | `/equipos/${number}/historial?${string}`
     | `/fallas/${number}` | `/fallas/${number}/fotos/${number}` | "/notificaciones" | `/notificaciones?${string}` | `/notificaciones/${number}/leida`
-    | "/ordenes" | `/ordenes?${string}` | `/ordenes/${number}` | `/ordenes/${number}/estado` | `/ordenes/${number}/cierre` | `/ordenes/tecnicos?${string}`
+    | "/ordenes" | `/ordenes?${string}` | `/ordenes/${number}` | `/ordenes/${number}/estado` | `/ordenes/${number}/cierre` | `/ordenes/${number}/fotos/${number}` | `/ordenes/tecnicos?${string}`
     | "/repuestos" | `/repuestos?${string}` | `/repuestos/${number}` | `/repuestos/${number}/movimientos`
     | "/preventivos" | `/preventivos/${number}` | "/preventivos/evaluar"
     | "/dashboard/metricas" | `/dashboard/metricas?sede_id=${number}`

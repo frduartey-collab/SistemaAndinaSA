@@ -368,6 +368,17 @@ export async function crearAplicacion(options: Options) {
     const { id, rol } = (res.locals as Context).usuario;
     res.json(ordenes.detalle(ordenId, administrar(rol) ? undefined : id));
   });
+  app.get('/ordenes/:id/fotos/:fotoId', autenticado, accesoOrdenes, (req, res) => {
+    const ordenId = idPositivo(req.params.id);
+    const fotoId = idPositivo(req.params.fotoId);
+    const { id, rol } = (res.locals as Context).usuario;
+    const foto = datos.db.transaction(() => {
+      const fallaId = ordenes.fallaAsociada(ordenId, administrar(rol) ? undefined : id);
+      if (fallaId === null) throw new ErrorAPI(404, 'FOTO_NO_ENCONTRADA', 'No se encontró la foto.');
+      return fallas.foto(fallaId, fotoId);
+    })();
+    res.set('Content-Type', foto.tipo).end(foto.contenido);
+  });
   app.patch('/ordenes/:id/estado', autenticado, accesoOrdenes, (req, res) => {
     const ordenId = idPositivo(req.params.id);
     const input = solicitud<OrdenEstadoSolicitud>('ordenes', 'OrdenEstadoSolicitud', req.body);

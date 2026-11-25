@@ -122,7 +122,7 @@ paths:
       description: |
         Disponible para Supervisor, Jefatura y el técnico asignado. La
         intervención es null para órdenes abiertas y cierres históricos que
-        preceden al registro de intervenciones.
+        preceden al registro de intervenciones. Incluye las fotos de la falla asociada.
       parameters:
         - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
       responses:
@@ -135,6 +135,29 @@ paths:
         "401": { $ref: "#/components/responses/NoAutorizado" }
         "403": { $ref: "#/components/responses/SinPermiso" }
         "404": { $ref: "#/components/responses/OrdenNoEncontrada" }
+  /ordenes/{id}/fotos/{fotoId}:
+    get:
+      operationId: descargarFotoOrden
+      summary: Consultar una foto de la falla asociada a la orden
+      description: Disponible para Supervisor, Jefatura y el técnico asignado dentro del alcance de la orden.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+        - { name: fotoId, in: path, required: true, schema: { $ref: "#/components/schemas/Id" } }
+      responses:
+        "200":
+          description: Contenido binario de la foto adjunta.
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        "400": { $ref: "#/components/responses/DatosInvalidos" }
+        "401": { $ref: "#/components/responses/NoAutorizado" }
+        "403": { $ref: "#/components/responses/SinPermiso" }
+        "404":
+          description: ORDEN_NO_ENCONTRADA o FOTO_NO_ENCONTRADA.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorRespuesta" }
   /ordenes/{id}/cierre:
     put:
       operationId: registrarIntervencionYCerrarOrden
@@ -340,12 +363,33 @@ components:
       allOf:
         - { $ref: "#/components/schemas/DatosOrden" }
       unevaluatedProperties: false
+    TipoFotoFalla:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    NombreFotoFalla:
+      type: string
+      minLength: 1
+      maxLength: 180
+      pattern: '\S'
+      not: { pattern: '[\u0000-\u001f\u007f/\\]' }
+    FotoFallaResumen:
+      type: object
+      additionalProperties: false
+      required: [id, nombre, tipo]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        nombre: { $ref: "#/components/schemas/NombreFotoFalla" }
+        tipo: { $ref: "#/components/schemas/TipoFotoFalla" }
     OrdenDetalleRespuesta:
       allOf:
         - { $ref: "#/components/schemas/DatosOrden" }
         - type: object
-          required: [intervencion]
+          required: [intervencion, fotos]
           properties:
+            fotos:
+              type: array
+              maxItems: 3
+              items: { $ref: "#/components/schemas/FotoFallaResumen" }
             intervencion:
               oneOf:
                 - { $ref: "#/components/schemas/IntervencionRespuesta" }

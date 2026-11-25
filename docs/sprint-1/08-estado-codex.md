@@ -168,3 +168,7 @@ Particular admite hasta 15 equipos vigentes. El cupo se aplica en los dos endpoi
 El dashboard queda disponible para Supervisor y Jefatura de Empresa. Particular no ve la opción en el menú y recibe 403 si consulta las métricas directamente. Al cerrar una orden en Particular, el técnico registra la solución, la duración y los repuestos. La API guarda el diagnóstico como nulo y conserva los diagnósticos históricos. Empresa mantiene el diagnóstico obligatorio en los nuevos cierres.
 
 Verificación. Compilaron backend y frontend, pasaron 91 pruebas de backend y se validaron 51 operaciones OpenAPI. Chromium comprobó las vistas y el cierre sin diagnóstico de Particular y los accesos de Empresa. El ensayo de migración conservó los registros de 20 tablas y sus referencias.
+
+## Fotografías en órdenes de trabajo
+
+Las órdenes correctivas muestran las fotografías del reporte asociado desde su detalle y después del cierre. El técnico asignado, Supervisor y Jefatura pueden consultarlas dentro del alcance de la orden. La prueba de integración comprueba los permisos, la descarga y la conservación de las fotos tras el cierre.
