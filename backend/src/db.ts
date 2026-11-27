@@ -27,10 +27,9 @@ export function abrirConexion(path = rutaDatos()): Database.Database {
 }
 
 interface UsuarioInicial { rut: string; password: string; nombre: string; rol: Rol }
-const inicial: UsuarioInicial = { rut: '11111111-1', password: 'admin123', nombre: 'Supervisor', rol: 'SUPERVISOR' };
 
 /** Seed local solicitado: nunca cambia la contraseña ni el rol de un usuario existente. */
-export async function seed(db: Database.Database, input: UsuarioInicial = inicial): Promise<boolean> {
+export async function seed(db: Database.Database, input: UsuarioInicial): Promise<boolean> {
   if (!rutValido(input.rut) || !input.password || Buffer.byteLength(input.password) > 72) {
     throw new Error('El seed requiere RUT válido y contraseña de 1 a 72 bytes.');
   }

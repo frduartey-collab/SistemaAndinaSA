@@ -5,6 +5,8 @@ info:
   description: Gestión de sedes del cliente autenticado con plan Empresa.
 security:
   - bearerAuth: []
+servers:
+  - url: /api
 paths:
   /sedes:
     get:

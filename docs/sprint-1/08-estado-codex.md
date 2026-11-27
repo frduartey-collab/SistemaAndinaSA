@@ -176,3 +176,9 @@ Las órdenes correctivas muestran las fotografías del reporte asociado desde su
 ## Modo oscuro e identidad visual
 
 SIGEM ofrece tema claro y oscuro en la portada, el acceso, el registro y las vistas con sesión. El botón de sol o luna cambia el tema y guarda la elección en el navegador. Desde Ajustes de interfaz también se puede volver a seguir el tema del dispositivo. La marca, el favicon y los colores de navegación se adaptan al tema. Los iconos de instalación usan el nuevo isotipo.
+
+## Despliegue unificado e instalación PWA
+
+Express sirve React y los 52 endpoints de la API desde un único origen. El Blueprint de Render configura una instancia y un disco persistente para SQLite y las fotos. La carga inicial crea la empresa demo, cinco cuentas, dos equipos y dos repuestos en una transacción cuando la base está vacía. Las instalaciones existentes conservan sus datos. El mismo enlace permite abrir SIGEM en el navegador o instalarlo como aplicación. Sin red se muestra un aviso en español.
+
+Verificación local del 26 de noviembre de 2026. Compilaron TypeScript y Vite, se validaron los doce contratos y pasaron 97 pruebas. Se comprobó que una foto nueva sigue accesible al reabrir SQLite y la carpeta de archivos, que las fotos anteriores siguen siendo legibles y que un segundo arranque omite la demo. Chromium cargó el manifiesto y el service worker y mostró el aviso de desconexión. La publicación HTTPS y la instalación desde el menú de dispositivos físicos se verifican después de activar el servicio en Render.

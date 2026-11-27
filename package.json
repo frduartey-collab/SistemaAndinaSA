@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --project backend/tsconfig.json",
-    "test": "npm run build && node --test backend/tests/*.test.mjs",
-    "start": "node --env-file-if-exists=.env backend/dist/server.js",
-    "dev": "npm run build && npm start",
-    "seed": "npm run build && node --env-file-if-exists=.env backend/dist/seed.js",
-    "tenant:empresa": "npm run build && node --env-file-if-exists=.env backend/dist/tenant-empresa.js",
-    "validate:contracts": "node scripts/validar-contratos.mjs"
+    "build": "npm run build:backend && npm --prefix frontend run build",
+    "test": "npm run build:backend && node --test backend/tests/*.test.mjs",
+    "start": "node --env-file-if-exists=.env backend/dist/server.js --web",
+    "dev": "npm run build:backend && node --env-file-if-exists=.env backend/dist/server.js",
+    "seed": "npm run build:backend && node --env-file-if-exists=.env backend/dist/seed.js",
+    "tenant:empresa": "npm run build:backend && node --env-file-if-exists=.env backend/dist/tenant-empresa.js",
+    "validate:contracts": "node scripts/validar-contratos.mjs",
+    "build:backend": "tsc --project backend/tsconfig.json",
+    "env:local": "node scripts/env-local.mjs"
   },
   "devDependencies": {
     "@types/bcrypt": "6.0.0",

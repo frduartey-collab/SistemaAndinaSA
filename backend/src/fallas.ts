@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Datos } from './datos.js';
 import type {
   ConsultaFallas, ConsultaNotificaciones, FallaCrearSolicitud, FallaDetalleRespuesta, FallaRespuesta,
@@ -56,7 +59,8 @@ export function listarFotosFalla(datos: Datos, fallaId: number): FotoFallaResume
 }
 
 export class Fallas {
-  constructor(private readonly datos: Datos) {
+  constructor(private readonly datos: Datos, private readonly uploadsDir?: string) {
+    if (uploadsDir) mkdirSync(uploadsDir, { recursive: true, mode: 0o700 });
     this.datos.db.exec(`
       CREATE TABLE IF NOT EXISTS fallas (
         id INTEGER PRIMARY KEY,
@@ -93,30 +97,56 @@ export class Fallas {
 
   crear(input: FallaCrearSolicitud, usuarioId: number, ahora: number): FallaRespuesta {
     const fotos = (input.fotos ?? []).map(decodificarFoto);
-    return this.datos.transaccion(() => {
-      const equipo = this.datos.obtener(input.equipo_id);
-      const fecha = new Date(ahora).toISOString();
-      const { lastInsertRowid } = this.datos.db.prepare(`
-        INSERT INTO fallas(tenant_id, equipo_id, usuario_id, descripcion, prioridad, fecha_reporte)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(this.datos.tenantId, equipo.id, usuarioId, input.descripcion.trim(), input.prioridad ?? equipo.criticidad, fecha);
+    const archivosCreados: string[] = [];
+    try {
+      return this.datos.transaccion(() => this.insertar(input, usuarioId, ahora, fotos, archivosCreados));
+    } catch (error) {
+      for (const ruta of archivosCreados) rmSync(ruta, { force: true });
+      throw error;
+    }
+  }
 
-      const id = Number(lastInsertRowid);
-      const insertarFoto = this.datos.db.prepare(
-        'INSERT INTO fotos_falla(tenant_id, falla_id, nombre, tipo, contenido) VALUES (?, ?, ?, ?, ?)',
-      );
-      for (const foto of fotos) {
-        insertarFoto.run(this.datos.tenantId, id, foto.nombre, foto.tipo, foto.contenido);
+  private insertar(
+    input: FallaCrearSolicitud, usuarioId: number, ahora: number,
+    fotos: (FotoFallaBinaria & { nombre: string })[], archivosCreados: string[],
+  ): FallaRespuesta {
+    const equipo = this.datos.obtener(input.equipo_id);
+    const fecha = new Date(ahora).toISOString();
+    const { lastInsertRowid } = this.datos.db.prepare(`
+      INSERT INTO fallas(tenant_id, equipo_id, usuario_id, descripcion, prioridad, fecha_reporte)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(this.datos.tenantId, equipo.id, usuarioId, input.descripcion.trim(), input.prioridad ?? equipo.criticidad, fecha);
+
+    const id = Number(lastInsertRowid);
+    for (const foto of fotos) {
+      if (this.uploadsDir) {
+        const archivo = randomUUID();
+        const ruta = join(this.uploadsDir, archivo);
+        const descriptor = openSync(ruta, 'wx', 0o600);
+        archivosCreados.push(ruta);
+        try {
+          writeFileSync(descriptor, foto.contenido);
+          fsyncSync(descriptor);
+        } finally {
+          closeSync(descriptor);
+        }
+        this.datos.db.prepare(
+          'INSERT INTO fotos_falla(tenant_id, falla_id, nombre, tipo, archivo) VALUES (?, ?, ?, ?, ?)',
+        ).run(this.datos.tenantId, id, foto.nombre, foto.tipo, archivo);
+      } else {
+        this.datos.db.prepare(
+          'INSERT INTO fotos_falla(tenant_id, falla_id, nombre, tipo, contenido) VALUES (?, ?, ?, ?, ?)',
+        ).run(this.datos.tenantId, id, foto.nombre, foto.tipo, foto.contenido);
       }
-      this.datos.db.prepare(`
-        INSERT INTO notificaciones_falla(tenant_id, falla_id, usuario_id, fecha)
-        SELECT tenant_id, ?, id, ? FROM usuarios
-        WHERE tenant_id = ? AND activo = 1 AND rol IN ('SUPERVISOR', 'JEFATURA')
-          AND (sede_id IS NULL OR sede_id = ?)
-      `).run(id, fecha, this.datos.tenantId, equipo.sede_id ?? null);
-      this.datos.auditar(usuarioId, 'FALLA_REPORTADA', id, ahora);
-      return this.obtener(id);
-    });
+    }
+    this.datos.db.prepare(`
+      INSERT INTO notificaciones_falla(tenant_id, falla_id, usuario_id, fecha)
+      SELECT tenant_id, ?, id, ? FROM usuarios
+      WHERE tenant_id = ? AND activo = 1 AND rol IN ('SUPERVISOR', 'JEFATURA')
+        AND (sede_id IS NULL OR sede_id = ?)
+    `).run(id, fecha, this.datos.tenantId, equipo.sede_id ?? null);
+    this.datos.auditar(usuarioId, 'FALLA_REPORTADA', id, ahora);
+    return this.obtener(id);
   }
 
   listar(consulta: ConsultaFallas, usuarioId?: number): PaginaFallas {
@@ -157,15 +187,19 @@ export class Fallas {
     if (usuarioId !== undefined) parametros.push(usuarioId);
     const sede = this.datos.sedeId === null ? '' : ' AND a.sede_id = ?';
     if (this.datos.sedeId !== null) parametros.push(this.datos.sedeId);
-    const foto = this.datos.db.prepare<number[], FotoFallaBinaria>(`
-      SELECT ff.tipo, ff.contenido
+    const foto = this.datos.db.prepare<number[], { tipo: TipoFotoFalla; archivo: string | null; contenido: Buffer | null }>(`
+      SELECT ff.tipo, ff.archivo, ff.contenido
       FROM fotos_falla ff
       JOIN fallas f ON f.id = ff.falla_id AND f.tenant_id = ff.tenant_id
       JOIN activos a ON a.id = f.equipo_id AND a.tenant_id = f.tenant_id
       WHERE f.tenant_id = ? AND f.id = ? AND ff.id = ?${filtro}${sede}
     `).get(...parametros);
     if (!foto) throw new ErrorAPI(404, 'FOTO_NO_ENCONTRADA', 'No se encontró la foto.');
-    return foto;
+    if (foto.contenido) return { tipo: foto.tipo, contenido: foto.contenido };
+    if (!this.uploadsDir || !foto.archivo || !/^[0-9a-f-]{36}$/.test(foto.archivo)) {
+      throw new Error('La ubicación de la fotografía no es válida.');
+    }
+    return { tipo: foto.tipo, contenido: readFileSync(join(this.uploadsDir, foto.archivo)) };
   }
 
   listarNotificaciones(consulta: ConsultaNotificaciones, usuarioId: number): PaginaNotificaciones {

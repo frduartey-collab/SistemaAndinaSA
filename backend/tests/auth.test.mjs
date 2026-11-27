@@ -7,17 +7,18 @@ import { Datos } from '../dist/datos.js';
 import { seed } from '../dist/db.js';
 
 const secret = 'secreto-exclusivo-auth-supertest-de-32-bytes';
+const supervisor = { rut: '11111111-1', nombre: 'Supervisor', rol: 'SUPERVISOR', password: 'clave-exclusiva-del-test-auth' };
 async function fixture(t) {
   const datos = new Datos();
-  await seed(datos.db);
+  await seed(datos.db, supervisor);
   const hash = datos.usuarioPorRut('11111111-1').passwordHash;
-  assert.equal(await seed(datos.db), false);
+  assert.equal(await seed(datos.db, supervisor), false);
   assert.equal(datos.usuarioPorRut('11111111-1').passwordHash, hash);
   const backend = await crearAplicacion({ datos, secret });
   t.after(() => backend.close());
   const api = request(backend.app);
   async function login() {
-    return api.post('/auth/login').send({ rut: '11111111-1', password: 'admin123' }).expect(200);
+    return api.post('/auth/login').send({ rut: supervisor.rut, password: supervisor.password }).expect(200);
   }
   return { api, login };
 }

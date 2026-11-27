@@ -2,6 +2,8 @@ openapi: 3.1.0
 info:
   title: SIGEM · Dashboard gerencial
   version: 1.0.0
+servers:
+  - url: /api
 paths:
   /dashboard/metricas:
     get:

@@ -305,3 +305,23 @@ export function migrarDiagnosticoOpcional(db: Database.Database): void {
       ['orden_id', 'autor_id', 'diagnostico', 'solucion', 'duracion_minutos', 'repuestos_usados', 'registrada_en', 'tenant_id']);
   });
 }
+
+/** Conserva los BLOB existentes y permite que las nuevas filas apunten a un archivo privado del volumen. */
+export function migrarArchivosFotos(db: Database.Database): void {
+  migrar(db, 7, () => {
+    reconstruirTabla(db, 'fotos_falla', `
+      id INTEGER PRIMARY KEY,
+      falla_id INTEGER NOT NULL REFERENCES fallas(id),
+      nombre TEXT NOT NULL CHECK (length(nombre) BETWEEN 1 AND 180),
+      tipo TEXT NOT NULL CHECK (tipo IN ('image/jpeg', 'image/png', 'image/webp')),
+      tenant_id INTEGER NOT NULL DEFAULT ${TENANT_LEGADO_ID} REFERENCES tenants(id),
+      contenido BLOB,
+      archivo TEXT UNIQUE,
+      CHECK (
+        (archivo IS NULL AND typeof(contenido) = 'blob' AND length(contenido) BETWEEN 3 AND 5242880)
+        OR (contenido IS NULL AND archivo IS NOT NULL AND length(archivo) = 36
+            AND archivo NOT GLOB '*[^0-9a-f-]*')
+      )
+    `, ['id', 'falla_id', 'nombre', 'tipo', 'tenant_id', 'contenido', 'archivo']);
+  });
+}

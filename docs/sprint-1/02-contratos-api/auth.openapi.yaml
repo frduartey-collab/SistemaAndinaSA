@@ -9,6 +9,8 @@ tags:
   - name: Autenticación
 security:
   - bearerAuth: []
+servers:
+  - url: /api
 paths:
   /auth/login:
     post:

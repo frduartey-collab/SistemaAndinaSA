@@ -10,6 +10,8 @@ info:
     se generan a partir de un plan y tienen falla_id nulo.
 security:
   - bearerAuth: []
+servers:
+  - url: /api
 paths:
   /ordenes:
     post:

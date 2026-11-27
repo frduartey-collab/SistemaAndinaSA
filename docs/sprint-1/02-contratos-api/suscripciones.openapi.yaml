@@ -5,6 +5,8 @@ info:
   description: Gestión de la suscripción de la empresa. Jefatura opera el checkout y el simulador. El webhook procesa confirmaciones firmadas y no inicia pagos.
 security:
   - bearerAuth: []
+servers:
+  - url: /api
 paths:
   /suscripciones:
     get:

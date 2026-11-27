@@ -1,36 +1,43 @@
-# Manufacturas Andina: Sprint 1
+# SIGEM · Manufacturas Andina S.A.
 
-Backend Node.js + Express + TypeScript estricto y SQLite. Alcance: HU-01 (RF-01, 3 SP) y HU-02 (RF-02, 5 SP). El Sprint 1 entregó el backend y tres wireframes. La etapa de interfaz añade el frontend funcional de autenticación y activos en la carpeta frontend.
+SIGEM reúne el catálogo de equipos, las fallas, las órdenes de trabajo y el inventario. React y la API de Node.js se publican en un mismo origen HTTPS. SQLite y las fotografías viven en el servidor compartido.
 
-## Preparación local
+## Publicar e instalar en seis pasos
 
-Requiere Node.js 24.22.1 (rama 24) y npm. La conexión SQLite de esta iteración usa better-sqlite3, un componente nativo instalado por npm.
+1. Utiliza la rama `main` de `frduartey-collab/SistemaAndinaSA`. Comprueba en GitHub que contiene `render.yaml`. Los archivos privados de tu Mac quedan fuera del despliegue.
+2. En el [panel de Render](https://dashboard.render.com/) abre **New → Blueprint**, conecta GitHub y selecciona el repositorio y la rama `main`.
+3. En la vista previa comprueba **Web Service → Starter**, una instancia y el disco **sigem-datos**, de **1 GB**, montado en `/var/data`. Revisa el cargo del servicio y del disco antes de pulsar **Deploy Blueprint**. El plan gratuito carece de disco persistente. [Discos de Render](https://render.com/docs/disks)
+4. Cuando el servicio indique **Live**, abre y copia el enlace HTTPS que Render muestra en su cabecera. En **Environment** consulta la contraseña `DEMO_PASSWORD_` del rol que vas a probar. Entrega a cada compañero solo su RUT y su contraseña por un canal privado.
+5. Abre el enlace en el dispositivo. En PC usa Chrome o Edge y elige **Instalar SIGEM** desde la barra o el menú. En Android abre Chrome y elige **Instalar aplicación** o **Añadir a pantalla de inicio**. En iPhone abre Safari, toca **Compartir → Añadir a pantalla de inicio** y activa **Abrir como app web** si aparece. [Instalación de PWA](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Installing)
+6. Crea una falla de demostración con una foto. Comprueba desde un segundo dispositivo con Supervisor que aparece. Reinicia el servicio desde Render y vuelve a abrir la foto. La prueba puede hacerse con el Mac apagado.
 
-1. `npm ci` instala las dependencias y sus componentes nativos. No uses `--ignore-scripts` con better-sqlite3.
-2. `cp .env.example .env`
-3. Genera una clave con `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"` y copia el resultado a JWT_SECRET en .env.
-4. `npm run build` compila el backend.
-5. `npm start` inicia en http://127.0.0.1:3000. `npm run dev` compila e inicia.
+## Cuentas de la demo
 
-Al arrancar, el servidor ejecuta seed() de forma idempotente: crea el usuario SUPERVISOR de demostración con RUT **11111111-1** y contraseña **admin123**, solo si ese RUT no existe. Si ya existe, conserva contraseña, rol y demás datos; no restablece la cuenta.
+| Rol | RUT | Contraseña en Render o en el archivo local .env |
+| --- | --- | --- |
+| Supervisor | 11111111-1 | `DEMO_PASSWORD_SUPERVISOR` |
+| Técnico | 22222222-2 | `DEMO_PASSWORD_TECNICO` |
+| Trabajador | 33333333-3 | `DEMO_PASSWORD_TRABAJADOR` |
+| Bodega | 44444444-4 | `DEMO_PASSWORD_BODEGA` |
+| Jefatura | 55555555-5 | `DEMO_PASSWORD_JEFATURA` |
 
-La base por defecto es `backend/data/app.db`, abierta mediante db.ts y better-sqlite3. Para seguir usando la base de la versión anterior, define `DB_PATH=backend/data/andina.sqlite` en .env antes del arranque: así conservas usuarios, sesiones, activos y auditoría en el archivo existente.
+Al primer arranque, una transacción crea el cliente Empresa de demostración, cinco cuentas, dos equipos y dos repuestos con stock inicial. Una base con datos conserva sus cuentas, contraseñas y registros. Las variables demo se utilizan solo al crear las cuentas. Mantén SQLite y la carpeta de fotos en el mismo volumen y respalda ambos juntos.
 
-`npm run seed` permite crear otros usuarios de demostración con SEED_RUT, SEED_PASSWORD y SEED_ROL opcionales en .env. Sus valores por defecto son 11111111-1, admin123 y SUPERVISOR; repetirlo no reemplaza un usuario existente. Los roles admitidos son SUPERVISOR, TECNICO, TRABAJADOR, BODEGA y JEFATURA. BODEGA puede autenticarse, pero no acceder a activos.
+## Ejecutar el mismo sitio en local
 
-**Credencial DEMO local:** 11111111-1 / admin123. Es una cuenta de desarrollo conocida; no representa una credencial de producción. JWT_SECRET permanece vacío en .env.example y debe configurarse. .env, claves y bases de datos quedan excluidos de Git.
-
-## Interfaz web local
-
-Mantén la API en marcha en el puerto 3000. Abre una segunda terminal en IntelliJ y usa la misma versión de Node 24 que usaste para iniciar el servidor.
+Desde la raíz del repositorio, con Node 24.22.x y npm, ejecuta:
 
 ```sh
-cd /Users/francoduarte/Desktop/ProyectoAndinaSA/frontend
 npm ci
-npm run dev
+npm ci --prefix frontend
+npm run env:local
+npm run build
+npm start
 ```
 
-Ejecuta npm ci al preparar el frontend por primera vez o cuando cambien las dependencias. Abre [Andina en el navegador](http://127.0.0.1:5173). En una base de demostración nueva, ingresa con el RUT 11111111-1 y la contraseña admin123. Si ya tienes un usuario, usa sus credenciales.
+Abre [SIGEM local](http://127.0.0.1:3000). `env:local` crea un archivo privado con claves aleatorias si falta y conserva cualquier `.env` existente. Si ya tenías uno y eliges una base vacía, añade las cinco variables demo de `.env.example` con claves diferentes. Para seguir usando tus datos locales, conserva tu `DB_PATH`. El valor por defecto es `backend/data/app.db` y las nuevas fotografías se guardan en `backend/data/uploads`.
+
+Durante el desarrollo también puedes iniciar la API con `npm run dev` y Vite con `npm --prefix frontend run dev` en otra terminal. Abre [la interfaz con recarga automática](http://127.0.0.1:5173). En producción las rutas públicas de la API empiezan por `/api`, por ejemplo `/api/auth/login` y `/api/v1/erp/costos-repuestos`. Las operaciones con datos requieren conexión. El aviso de desconexión de la PWA permite volver a intentar la navegación.
 
 Desde **Equipos** puedes buscar, filtrar y consultar fichas. SUPERVISOR y JEFATURA también pueden crear, editar y confirmar una baja. TECNICO y TRABAJADOR tienen acceso de lectura, y BODEGA ve la pantalla de acceso restringido. La baja retira el equipo de la lista y conserva su código reservado.
 
@@ -42,7 +49,7 @@ Desde el login, **¿No tienes cuenta? Regístrate** permite crear una cuenta de 
 
 En **Fallas**, busca un equipo por código o nombre, describe el problema y guarda el reporte. La criticidad del equipo sugiere una prioridad. Puedes seleccionar otra prioridad antes de guardar. Técnico y Trabajador ven sus propios reportes. Supervisor y Jefatura ven todos y Bodega tiene el acceso restringido.
 
-La selección de hasta tres fotos es una simulación de interfaz. El API guarda el reporte con el autor de la sesión, la prioridad, la fecha y el estado Reportada. Reinicia el proceso de la API después de actualizar para que SQLite cree la tabla fallas.
+Cada reporte admite hasta tres fotos y los usuarios autorizados pueden abrirlas en el reporte o desde su orden. El API guarda el reporte con el autor de la sesión, la prioridad, la fecha y el estado Reportada. Reinicia el proceso de la API después de actualizar para que SQLite cree la tabla fallas.
 
 ## Órdenes de trabajo
 
@@ -109,7 +116,7 @@ La tabla de trabajo es activos. Al abrir una base de la versión anterior, una m
 - Contraseñas nuevas con bcrypt, coste 12. El login conserva compatibilidad con hashes scrypt anteriores: tras autenticar una contraseña de hasta 72 bytes, actualiza su hash a bcrypt. Si la contraseña heredada supera 72 bytes, conserva scrypt para evitar truncamiento. SQLite en disco tiene permisos 0600.
 - El token se guarda como SHA-256. La auditoría guarda actor, acción, entidad y fecha, sin contraseñas ni tokens legibles.
 
-El servidor escucha en localhost y no confía en X-Forwarded-For. El despliegue requiere TLS, proxy confiable, operación de secretos, respaldo y mediciones RNF. Esta entrega local no acredita disponibilidad 99,5% ni 50 usuarios concurrentes.
+En desarrollo el servidor escucha en localhost. En producción usa el puerto asignado y Render termina TLS. En Render, Express confía en un salto del proxy para el límite de registros por IP. Esta entrega local no acredita disponibilidad 99,5% ni 50 usuarios concurrentes.
 
 ## Documentación y cierre
 

@@ -5,6 +5,8 @@ info:
   description: Avisos persistentes de fallas para los destinatarios Supervisor y Jefatura.
 security:
   - bearerAuth: []
+servers:
+  - url: /api
 paths:
   /notificaciones:
     get:

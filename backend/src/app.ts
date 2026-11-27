@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction, type ErrorRequestHandler } from 'express';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import jwt from 'jsonwebtoken';
+import { montarWeb } from './web.js';
 import { Dashboard } from './dashboard.js';
 import { Datos } from './datos.js';
 import { Fallas } from './fallas.js';
@@ -10,7 +11,7 @@ import { Sedes } from './sedes.js';
 import { Suscripciones } from './suscripciones.js';
 import { IntegracionesERP } from './integraciones-erp.js';
 import { Preventivos } from './preventivos.js';
-import { migrarDiagnosticoOpcional, migrarPreventivos } from './tenants.js';
+import { migrarArchivosFotos, migrarDiagnosticoOpcional, migrarPreventivos } from './tenants.js';
 import { HistorialEquipos } from './historial-equipos.js';
 import { ErrorAPI } from './errores.js';
 import { hashPassword, verificarPassword, hashToken } from './seguridad.js';
@@ -30,6 +31,9 @@ import type {
 } from './dominio.js';
 
 interface Options {
+  frontendDir?: string;
+  uploadsDir?: string;
+  proxyRender?: boolean;
   secret: string;
   datos?: Datos;
   now?: () => number;
@@ -62,12 +66,13 @@ export async function crearAplicacion(options: Options) {
   const windowMs = options.windowMs ?? 300_000;
   if (!Number.isInteger(ttl) || ttl < 1 || !Number.isInteger(max) || max < 1 || windowMs < 1) throw new Error('Políticas de sesión inválidas.');
   const datos = options.datos ?? new Datos();
-  const fallas = new Fallas(datos);
+  const fallas = new Fallas(datos, options.uploadsDir);
   const inventario = new InventarioRepuestos(datos);
   const ordenes = new OrdenesTrabajo(datos, inventario);
   const historial = new HistorialEquipos(datos);
   const sedes = new Sedes(datos);
   datos.migrarTenantsOperativos();
+  migrarArchivosFotos(datos.db);
   migrarPreventivos(datos.db);
   migrarDiagnosticoOpcional(datos.db);
   const preventivos = new Preventivos(datos, ordenes);
@@ -77,7 +82,7 @@ export async function crearAplicacion(options: Options) {
   const dummy = await hashPassword(randomUUID());
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', false);
+  app.set('trust proxy', options.proxyRender ? 1 : false);
   app.use((_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); next(); });
 
   // Solo este endpoint admite fotos codificadas y autoriza antes de leer el cuerpo.
@@ -269,7 +274,7 @@ export async function crearAplicacion(options: Options) {
   function crearActivo(req: Request, res: Response): void {
     const input = solicitud<ActivoCrearSolicitud>('activos', 'ActivoCrearSolicitud', req.body);
     const result = datos.crear(input, (res.locals as Context).usuario.id, now());
-    res.location('/activos/' + result.id).status(201).json(result);
+    res.location(req.baseUrl + '/activos/' + result.id).status(201).json(result);
   }
   app.post('/activos', autenticado, escribirActivos, crearActivo);
   app.post('/equipos', autenticado, escribirActivos, crearActivo);
@@ -574,7 +579,7 @@ export async function crearAplicacion(options: Options) {
     const tenantId = integracionesERP.autenticar(req.get('X-API-Key'));
     datos.enTenant(tenantId, () => next());
   }
-  app.get('/api/v1/erp/costos-repuestos', autenticarERP, (req, res) => {
+  app.get('/v1/erp/costos-repuestos', autenticarERP, (req, res) => {
     if (Object.keys(req.query).some(clave => clave !== 'page' && clave !== 'size')) {
       throw new ErrorAPI(400, 'DATOS_INVALIDOS', 'El catálogo ERP admite los filtros page y size.');
     }
@@ -585,7 +590,7 @@ export async function crearAplicacion(options: Options) {
     }
     res.json(integracionesERP.costos(page, size));
   });
-  app.post('/api/v1/erp/sync-stock', autenticarERP, (req, res) => {
+  app.post('/v1/erp/sync-stock', autenticarERP, (req, res) => {
     const input = solicitud<SyncStockERPSolicitud>('erp', 'SyncStockERPSolicitud', req.body);
     res.json(integracionesERP.sincronizar(input, now()));
   });
@@ -603,7 +608,7 @@ export async function crearAplicacion(options: Options) {
   };
   app.use(errores);
   return {
-    app,
+    app: montarWeb(app, options.frontendDir),
     datos,
     evaluarPreventivosProgramados: (avisarError: (tenantId: number, error: unknown) => void) => {
       preventivos.evaluarEmpresasActivas(now(), avisarError);

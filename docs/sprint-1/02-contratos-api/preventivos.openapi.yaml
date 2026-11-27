@@ -4,6 +4,8 @@ info:
   version: 0.1.0
 security:
   - bearerAuth: []
+servers:
+  - url: /api
 paths:
   /preventivos:
     get:

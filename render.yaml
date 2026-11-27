@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: sigem-andina
+    runtime: node
+    branch: main
+    plan: starter
+    numInstances: 1
+    buildCommand: npm ci --include=dev && npm ci --include=dev --prefix frontend && npm run build
+    startCommand: npm start
+    healthCheckPath: /manifest.webmanifest
+    disk:
+      name: sigem-datos
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/sigem.sqlite
+      - key: UPLOADS_DIR
+        value: /var/data/fotos
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEMO_PASSWORD_SUPERVISOR
+        generateValue: true
+      - key: DEMO_PASSWORD_TECNICO
+        generateValue: true
+      - key: DEMO_PASSWORD_TRABAJADOR
+        generateValue: true
+      - key: DEMO_PASSWORD_BODEGA
+        generateValue: true
+      - key: DEMO_PASSWORD_JEFATURA
+        generateValue: true

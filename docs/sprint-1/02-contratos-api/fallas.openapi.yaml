@@ -9,6 +9,8 @@ info:
     y los avisos a la supervisión se guardan junto al reporte.
 security:
   - bearerAuth: []
+servers:
+  - url: /api
 paths:
   /fallas:
     post:

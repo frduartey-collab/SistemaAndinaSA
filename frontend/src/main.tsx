@@ -17,3 +17,9 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {
+    console.warn('No se pudo activar el modo sin conexión de SIGEM.')
+  })
+}

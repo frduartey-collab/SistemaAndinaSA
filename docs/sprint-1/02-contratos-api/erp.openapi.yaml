@@ -2,6 +2,8 @@ openapi: 3.1.0
 info:
   title: SIGEM · Integración ERP
   version: 1.0.0
+servers:
+  - url: /api
 paths:
   /integraciones/erp:
     get:
@@ -40,7 +42,7 @@ paths:
               schema: { $ref: "#/components/schemas/ClaveERP" }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
-  /api/v1/erp/costos-repuestos:
+  /v1/erp/costos-repuestos:
     get:
       operationId: exportarCostosRepuestosERP
       summary: Consultar costos unitarios de repuestos vigentes de la organización
@@ -57,7 +59,7 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
-  /api/v1/erp/sync-stock:
+  /v1/erp/sync-stock:
     post:
       operationId: sincronizarStockERP
       summary: Ajustar existencias del catálogo mediante movimientos auditados
