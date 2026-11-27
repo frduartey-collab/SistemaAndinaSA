@@ -1,0 +1,58 @@
+name: Generar ejecutables
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  portable:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows
+          - os: macos-14
+            target: mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - run: npm ci
+      - run: npm ci --prefix frontend
+      - run: npm run build
+      - name: Crear paquete
+        shell: pwsh
+        run: |
+          if ('${{ matrix.target }}' -eq 'windows') {
+            $root = 'salida/SIGEM-Windows'
+          } else {
+            $root = 'salida/SIGEM.app/Contents/Resources'
+            New-Item -ItemType Directory -Force 'salida/SIGEM.app/Contents/MacOS' | Out-Null
+            Copy-Item portable/mac-info.plist 'salida/SIGEM.app/Contents/Info.plist'
+            Copy-Item portable/mac-launch.sh 'salida/SIGEM.app/Contents/MacOS/SIGEM'
+            chmod +x 'salida/SIGEM.app/Contents/MacOS/SIGEM'
+          }
+          New-Item -ItemType Directory -Force "$root/app/backend", "$root/app/frontend", "$root/app/docs/sprint-1" | Out-Null
+          Copy-Item backend/dist "$root/app/backend/dist" -Recurse
+          Copy-Item frontend/dist "$root/app/frontend/dist" -Recurse
+          Copy-Item docs/sprint-1/02-contratos-api "$root/app/docs/sprint-1/02-contratos-api" -Recurse
+          Copy-Item node_modules "$root/app/node_modules" -Recurse
+          Copy-Item package.json "$root/app/package.json"
+          Copy-Item portable/iniciar.mjs "$root/iniciar.mjs"
+          Copy-Item portable/LEEME.md "$root/LEEME.md"
+          if ('${{ matrix.target }}' -eq 'windows') {
+            Copy-Item (Get-Command node).Source "$root/node.exe"
+            Add-Type -TypeDefinition (Get-Content portable/windows.cs -Raw) -ReferencedAssemblies System.Windows.Forms -OutputType WindowsApplication -OutputAssembly "$root/SIGEM.exe"
+          } else {
+            Copy-Item (Get-Command node).Source "$root/node"
+            chmod +x "$root/node"
+          }
+          node portable/probar.mjs "$root"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SIGEM-${{ matrix.target }}
+          path: salida/
+          retention-days: 30
